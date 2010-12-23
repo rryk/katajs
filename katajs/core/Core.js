@@ -204,7 +204,7 @@ Kata.scriptRoot="";
                 });
         };
         Kata.evalInclude = Kata.include;
-    } else if (typeof(document) != "undefined" && document.write) {
+    } else if (typeof(document) != "undefined") {
         var scripttags = document.getElementsByTagName("script");
         var headTag = document.getElementsByTagName("head")[0];
         for (var i = 0; i < scripttags.length; i++) {

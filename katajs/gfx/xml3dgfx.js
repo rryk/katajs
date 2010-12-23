@@ -167,7 +167,7 @@ Kata.require([
 	}
 	
 	XML3DGraphics.prototype.methodTable["animate"] = function(msg) {
-		console.log("animate " + msg.id);
+		//console.log("animate " + msg.id);
 		
 		if (this.objects[msg.id] === undefined)
 			console.error("Cannot animate an object " + msg.id + ". It does not exist.");

@@ -31,7 +31,7 @@ server.document-root       = "%(pwd)s/"
 server.errorlog            = "%(pwd)s/lighttpd.error.log"
 index-file.names           = ( "index.php", "index.html",
                                "index.htm", "default.htm",
-                               "index.lighttpd.html" )
+                               "index.lighttpd.html", "index.xhtml" )
 dir-listing.activate       = "enable"
 accesslog.filename         = "%(pwd)s/lighttpd.access.log"
 url.access-deny            = ( "~", ".inc" )
@@ -70,6 +70,7 @@ mimetype.assign             = (
   ".css"          =>      "text/css",
   ".html"         =>      "text/html",
   ".htm"          =>      "text/html",
+  ".xhtml"        =>      "application/xhtml+xml",
   ".js"           =>      "text/javascript",
   ".asc"          =>      "text/plain",
   ".c"            =>      "text/plain",
