@@ -132,11 +132,11 @@ Kata.require([
 		
 		if (this.objects[msg.id] === undefined)
 			console.error("Cannot add a mesh. Object " + msg.id + " does not exist.");
-		
-		this.objects[msg.id].initMesh(
-			msg.mesh,
-			msg.type === undefined ? "xml3d" : msg.type
-		);
+		else
+			this.objects[msg.id].initMesh(
+				msg.mesh,
+				msg.type === undefined ? "xml3d" : msg.type
+			);
 	};
 	
 	XML3DGraphics.prototype.methodTable["move"] = function(msg) {
@@ -162,8 +162,8 @@ Kata.require([
 		
 		if (this.objects[msg.id] === undefined)
 			console.error("Cannot move an object " + msg.id + " .It does not exist.");
-		
-		this.objects[msg.id].move(msg, msg.interpolate == undefined ? true : msg.interpolate);
+		else
+			this.objects[msg.id].move(msg, msg.interpolate == undefined ? true : msg.interpolate);
 	}
 	
 	XML3DGraphics.prototype.methodTable["animate"] = function(msg) {
@@ -171,8 +171,8 @@ Kata.require([
 		
 		if (this.objects[msg.id] === undefined)
 			console.error("Cannot animate an object " + msg.id + ". It does not exist.");
-		
-		this.objects[msg.id].animate(msg.animation);
+		else
+			this.objects[msg.id].animate(msg.animation);
 	}
 	
 	XML3DGraphics.prototype.methodTable["camera"] = function(msg) {
@@ -180,14 +180,17 @@ Kata.require([
 		
 		if (this.objects[msg.id] === undefined)
 			console.error("Cannot add a mesh. Object " + msg.id + " does not exist.");
-		
-		this.objects[msg.id].initCamera();
+		else
+			this.objects[msg.id].initCamera();
 	}
 	
 	XML3DGraphics.prototype.methodTable["attachcamera"] = function(msg) {
 		console.log("attachcamera " + msg.id);
 		
-		// TODO: implement
+		if (this.objects[msg.id] === undefined)
+			console.error("Cannot attach camera. Object " + msg.id + " does not exist.");
+		else 
+			this.objects[msg.id].attachCamera(msg);
 	}
 	
 	XML3DGraphics.prototype.methodTable["destroy"] = function(msg) {
@@ -387,19 +390,20 @@ Kata.require([
 						if (doc && doc.documentElement.nodeName.toLowerCase() == "xml3d")
 						{
 							// create transformation
-							thus.transformID = thus.id + "transform";
+							thus.transformID = "transform" + thus.id;
 							thus.transform = document.createElementNS(org.xml3d.xml3dNS, "transform");
 							thus.transform.setAttribute("id", thus.transformID);
+							thus.gfx.defs.appendChild(thus.transform);
 							
 							// add suffix to id's in the mesh document
 							thus.appendSuffixToIds(doc.documentElement, thus.id);
 							
 							// function to update location of the mesh
 							thus.updateLocation = function(interpolate) {
-								var location = Kata.LocationExtrapolate(thus.curLocation, new Date().getTime());
+								var location = Kata.LocationExtrapolate(this.curLocation, new Date().getTime());
 								
-								thus.transform.translation = new XML3DVec3(location.pos[0], location.pos[1], location.pos[2]);
-								thus.transform.rotation.setQuaternion(new XML3DVec3(location.orient[0], location.orient[1], location.orient[2]), location.orient[3]);
+								this.transform.translation = new XML3DVec3(location.pos[0], location.pos[1], location.pos[2]);
+								this.transform.rotation.setQuaternion(new XML3DVec3(location.orient[0], location.orient[1], location.orient[2]), location.orient[3]);
 								
 								this.gfx.root.update();
 								
@@ -408,7 +412,6 @@ Kata.require([
 							
 							// place new mesh at the last received location
 							thus.updateLocation(false);
-							thus.gfx.defs.appendChild(thus.transform);
 							
 							// create group
 							thus.group = document.createElementNS(org.xml3d.xml3dNS, "group");
@@ -486,9 +489,9 @@ Kata.require([
 			this.objType = "camera";
 			
 			// create view element and set an id
-			var viewID = "view" + Math.round(Math.random()*10000000);
+			this.viewID = "view" + this.id;
 			this.view = document.createElementNS(org.xml3d.xml3dNS, "view");
-			this.view.setAttribute("id", viewID);
+			this.view.setAttribute("id", this.viewID);
 			
 			// function to update location of the camera
 			this.updateLocation = function(interpolate) {
@@ -506,11 +509,22 @@ Kata.require([
 			this.updateLocation(false);
 			
 			this.gfx.root.appendChild(this.view);
-			this.gfx.root.activeView = "#" + viewID;
 		}
 		else
 			console.error("Cannot set object " + msg.id + " as camera. " +
 				"It is already a " + this.objType + ".");
+	}
+	
+	// attach camera to the selected view
+	XML3DVWObject.prototype.attachCamera = function(msg) {
+		if (this.objType != "camera")
+			console.error("Cannot attach camera. Object " + this.id + " is " + this.objType + ".");
+		else if (msg.target == undefined)
+			console.error("Attaching camera to an object texture is not supported.");
+		else if (msg.target != 0)
+			console.error("Camera can only be attached to the framebuffer. Stereo is not supported.");
+		else
+			this.gfx.root.activeView = "#" + this.viewID;
 	}
 	
 	// move object to a new location (derived from message)
@@ -543,9 +557,9 @@ Kata.require([
 		}
 		
 		// save animation if we haven't loaded mesh yet
-		if (this.animations == undefined)
+		if (this.animations == undefined) {
 			this.savedAnimation = animationName;
-		else if (this.animations[animationName] == undefined) {
+		} else if (this.animations[animationName] == undefined) {
 			console.error("Cannot animate an object " + this.id + ". Animation '" + animationName + "' does not exist.");
 			return;
 		} else {
@@ -565,6 +579,25 @@ Kata.require([
 	}
 	
 	XML3DVWObject.prototype.destroy = function() {
+		if (this.objType == "mesh") {
+			// stop animations if they are running
+			if (this.runningAnimations != undefined)
+				for (var i in this.runningAnimations)
+					org.xml3d.stopAnimation(this.runningAnimations[i]);
+			
+			// cancel last update if scheduled
+			if (this.lastScheduledUpdateIndex != undefined)
+				this.gfx.cancelUpdate(this.lastScheduledUpdateIndex);
+			
+			this.group.parentNode.removeChild(this.group);
+			this.transform.parentNode.removeChild(this.transform);
+		} else if (this.objType == "camera") {
+			// detach camera if was attached
+			if (this.gfx.root.activeView == "#" + this.viewID)
+				this.gfx.root.activeView = "";
+			
+			this.view.parentNode.removeChild(this.view);
+		}
 	}
 	
 	// rename all ids in the element and all of it's children 
