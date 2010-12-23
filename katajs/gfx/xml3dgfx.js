@@ -37,7 +37,327 @@ Kata.require([
     ['externals/xml3d/xml3d.js', 'externals/xml3d/xml3d_animation.js']
 ], function() {
     
-	/* XML3DVMObject class */
+	/* XML3DGraphics class */
+	
+	var XML3DGraphics = function(callbackFunction, parentElement) {
+		this.parentElement = parentElement;
+		
+		// create dictionary of objects
+		this.objects = {};
+		
+		// load base world and set up scene root
+		if (window.xml3dText == undefined)
+			this.root = document.createElementNS(org.xml3d.xml3dNS, "xml3d");
+		else
+		{
+			var parser = new DOMParser();
+			var xml3dDoc = parser.parseFromString(window.xml3dText, "text/xml");
+			this.root = document.importNode(xml3dDoc.documentElement, true);
+		}
+		
+		this.root.style.width = "100%";
+		this.root.style.height = "100%";
+		parentElement.appendChild(this.root);
+		
+		// find or create defs element
+		this.defs = this.root.getElementsByTagNameNS(org.xml3d.xml3dNS, "defs")[0];
+		if (this.defs == undefined)
+		{
+			this.defs = document.createElementNS(org.xml3d.xml3dNS, "defs");
+			this.root.insertChild(this.defs,  this.root.firstChild);
+		}
+		
+		// bind message handlers
+		var thus = this;
+		
+		$(this.root).bind("mousedown", function (e){thus.mouseDown(e)});
+		$(this.root).bind("mouseup",   function (e){thus.mouseUp(e)});
+		$(this.root).bind("mousemove", function (e){thus.mouseMove(e)});
+		$(this.root).bind("scroll",    function (e){thus.scrollWheel(e)});
+		$(document).bind("keydown",   function (e){thus.keyDown(e)});
+		$(document).bind("keyup",     function (e){thus.keyUp(e)});
+		
+		// map for pressed keys
+		this.keyDownMap = {};
+		
+		// perform regular updates
+		this.scheduledUpdates = [];
+		setInterval(Kata.bind(this.update, this), 16);
+	};
+	
+	XML3DGraphics.initialize = function(scenefile, cb) {
+		$.ajax({
+            url: scenefile,
+            success: function(data) {
+        	   window.xml3dText = data;
+               cb();
+            },
+            dataType: "text"
+        });
+    }
+	
+	// push an update into the queue and return it's index
+	XML3DGraphics.prototype.scheduleUpdate = function(newUpdate) {
+		return this.scheduledUpdates.push(newUpdate) - 1;
+	};
+	
+	// remove an update from the queue by it's index
+	XML3DGraphics.prototype.cancelUpdate = function(updateIndex) {
+		delete this.scheduledUpdates[updateIndex];
+	};
+	
+	// handle updates
+	XML3DGraphics.prototype.update = function() {
+		for (var index in this.scheduledUpdates)
+		{
+			// update may reschedule itself again by returning false
+			// otherwise it is deleted from the list of update
+			if (this.scheduledUpdates[index]())
+				delete this.scheduledUpdates[index];
+		}
+	};
+
+	// Messages from the KataJS
+	
+	XML3DGraphics.prototype.methodTable = {};
+	
+	XML3DGraphics.prototype.methodTable["create"] = function(msg) {
+		console.log("create " + msg.id);
+		
+		this.objects[msg.id] = new XML3DVWObject(msg, this);
+	};
+	
+	XML3DGraphics.prototype.methodTable["mesh"] = function(msg) {
+		console.log("mesh " + msg.id);
+		
+		if (this.objects[msg.id] === undefined)
+			console.error("Cannot add a mesh. Object " + msg.id + " does not exist.");
+		
+		this.objects[msg.id].initMesh(
+			msg.mesh,
+			msg.type === undefined ? "xml3d" : msg.type
+		);
+	};
+	
+	XML3DGraphics.prototype.methodTable["move"] = function(msg) {
+		/*var EPS = 0.001;
+		
+		if ((this.lastMoveMsg == undefined ||
+			Math.abs(this.lastMoveMsg.pos[0] - msg.pos[0]) > EPS ||
+			Math.abs(this.lastMoveMsg.pos[1] - msg.pos[1]) > EPS ||
+			Math.abs(this.lastMoveMsg.pos[2] - msg.pos[2]) > EPS ||
+			Math.abs(this.lastMoveMsg.orient[0] - msg.orient[0]) > EPS ||
+			Math.abs(this.lastMoveMsg.orient[1] - msg.orient[1]) > EPS ||
+			Math.abs(this.lastMoveMsg.orient[2] - msg.orient[2]) > EPS ||
+			Math.abs(this.lastMoveMsg.orient[3] - msg.orient[3]) > EPS ||
+			this.lastMoveMsg.id != msg.id) &&
+			this.objects[msg.id].objType == "mesh")
+		{
+			console.debug("move " + msg.id);
+			console.debug(msg);
+			
+			this.lastMoveMsg = msg;
+		}*/
+			
+		
+		if (this.objects[msg.id] === undefined)
+			console.error("Cannot move an object " + msg.id + " .It does not exist.");
+		
+		this.objects[msg.id].move(msg, msg.interpolate == undefined ? true : msg.interpolate);
+	}
+	
+	XML3DGraphics.prototype.methodTable["animate"] = function(msg) {
+		console.log("animate " + msg.id);
+		
+		if (this.objects[msg.id] === undefined)
+			console.error("Cannot animate an object " + msg.id + ". It does not exist.");
+		
+		this.objects[msg.id].animate(msg.animation);
+	}
+	
+	XML3DGraphics.prototype.methodTable["camera"] = function(msg) {
+		console.log("camera " + msg.id);
+		
+		if (this.objects[msg.id] === undefined)
+			console.error("Cannot add a mesh. Object " + msg.id + " does not exist.");
+		
+		this.objects[msg.id].initCamera();
+	}
+	
+	XML3DGraphics.prototype.methodTable["attachcamera"] = function(msg) {
+		console.log("attachcamera " + msg.id);
+		
+		// TODO: implement
+	}
+	
+	XML3DGraphics.prototype.methodTable["destroy"] = function(msg) {
+		console.log("destroy " + msg.id);
+		
+		if (this.objects[msg.id] === undefined)
+			console.error("Cannot destroy  object " + msg.id + ". It does not exist.");
+		else
+		{
+			this.objects[msg.id].destroy();
+			delete this.objects[msg.id];
+		}
+	}
+	
+	XML3DGraphics.prototype.methodTable["unknown"] = function(msg) {
+		console.log(msg.msg + " " + msg.id);
+	};
+	
+	XML3DGraphics.prototype.send = function(obj) {
+		obj.msg = obj.msg.toLowerCase();
+		
+		if (this.methodTable[obj.msg])
+			this.methodTable[obj.msg].call(this, obj);
+		else
+			this.methodTable["unknown"].call(this, obj);
+	};
+	
+	// Messages to KataJS
+	
+	XML3DGraphics.prototype.setInputCallback = function(cb) {
+		this.inputCallback = cb;
+    };
+    
+    XML3DGraphics.prototype.extractMouseEventInfo = function(e){
+        var ev = {};
+        ev.type = e.type;
+        ev.shiftKey = e.shiftKey;
+        ev.altKey = e.altKey;
+        ev.ctrlKey = e.ctrlKey;
+        ev.which = e.button;
+        ev.x = e.clientX;
+        ev.y = e.clientY;
+        ev.screenX = e.screenX;
+        ev.screenY = e.screenY;
+        ev.clientX = e.clientX;
+        ev.clientY = e.clientY;
+        var el = null;
+        if (typeof(e.srcElement) != "undefined") {
+            el = e.srcElement;
+            ev.width = e.srcElement.clientWidth;
+            ev.height = e.srcElement.clientHeight;
+        }
+        else if (typeof(e.target != "undefined")) {
+            el = e.target;
+            ev.width = e.target.width;
+            ev.height = e.target.height;
+        }
+        else {
+            ev.width = 0;
+            ev.height = 0;
+        }
+        while (el != null) {
+            ev.x -= el.offsetLeft || 0;
+            ev.y -= el.offsetTop || 0;
+            el = el.offsetParent;
+        }
+        return ev;
+    };
+    
+    XML3DGraphics.prototype.mouseDown = function(e) {
+        this._buttonState |= Math.pow(2, e.button);
+        var ev = this.extractMouseEventInfo(e);
+        var msg = {
+            msg: "mousedown",
+            event: ev
+        };
+        if (ev.which == 2) {
+            document.body.style.cursor = "crosshair";
+        }
+        this.inputCallback(msg);
+    };
+    
+    XML3DGraphics.prototype.mouseUp = function(e){
+        this._buttonState &= 7 - Math.pow(2, e.button);
+        var ev = this.extractMouseEventInfo(e);
+        var msg = {
+            msg: "mouseup",
+            event: ev
+        };
+        if (ev.which == 2) {
+            document.body.style.cursor = "default";
+        }
+        this.inputCallback(msg);
+    };
+    
+    /*
+     * for now, we only send mouse moves if left button depressed
+     * otherwise we flood with messages.  Note right button is controlled by OS so we ignore
+     */
+    XML3DGraphics.prototype.mouseMove = function(e){
+        if (this._buttonState) {
+            var ev = this.extractMouseEventInfo(e);
+            var msg = {
+                msg: "mousemove",
+                event: ev
+            };
+            this.inputCallback(msg);
+        }
+    };
+
+    XML3DGraphics.prototype.keyDown = function(e){
+        if (Kata.suppressCanvasKeyInput) return;
+        this.keyDownMap[e.keyCode]=-1;
+        var ev = {};
+        ev.type = e.type;
+        ev.keyCode = e.keyCode;
+        ev.shiftKey = e.shiftKey;
+        ev.altKey = e.altKey;
+        ev.ctrlKey = e.ctrlKey;
+        var msg = {
+            msg: "keydown",
+            event: ev
+        };
+        this.inputCallback(msg);
+    };
+
+    XML3DGraphics.prototype.keyUp = function(e) {
+        if (!this.keyDownMap[e.keyCode]) {
+            return;
+        }
+        var ev = {};
+        ev.type = e.type;
+        ev.keyCode = e.keyCode;
+        ev.shiftKey = e.shiftKey;
+        ev.altKey = e.altKey;
+        ev.ctrlKey = e.ctrlKey;
+        var msg = {
+            msg: "keyup",
+            event: ev
+        };
+        var me=this;
+        this.keyDownMap[e.keyCode] = 1;
+        setTimeout(function () {                            /// wait to see if we're part of a bogus key repeat
+            if (me.keyDownMap[e.keyCode] == 1) {           /// if fail, then keydown (or another keyup?) occured in last 50 ms
+                me.keyDownMap[e.keyCode] = 0;              /// if no other events on this key, fire the real keyup event & clear map
+                me.inputCallback(msg);
+            }
+        }, 50);
+    };
+
+    XML3DGraphics.prototype.scrollWheel = function(e){
+        var ev = {};
+        ev.type = e.type;
+        ev.shiftKey = e.shiftKey;
+        ev.altKey = e.altKey;
+        ev.ctrlKey = e.ctrlKey;
+        if (e.wheelDelta != null) {         /// Chrome
+            ev.dy = e.wheelDelta;
+        }
+        else {                              /// Firefox
+            ev.dy = e.detail * -40;         /// -3 for Firefox == 120 for Chrome
+        }
+        var msg = {
+            msg: "wheel",
+            event: ev
+        };
+        this.inputCallback(msg);
+    };
+    
+/* XML3DVMObject class */
 	
 	function XML3DVWObject(msg, gfx) {
 		this.id = msg.id;
@@ -306,315 +626,6 @@ Kata.require([
 				this.appendSuffixToIds(element.childNodes[childIndex], suffix);
 	}
 	
-	/* XML3DGraphics class */
-	
-	var XML3DGraphics = function(callbackFunction, parentElement) {
-		this.parentElement = parentElement;
-		
-		// create dictionary of objects
-		this.objects = {};
-		
-		// load base world and set up scene root
-		if (window.xml3dText == undefined)
-			this.root = document.createElementNS(org.xml3d.xml3dNS, "xml3d");
-		else
-		{
-			var parser = new DOMParser();
-			var xml3dDoc = parser.parseFromString(window.xml3dText, "text/xml");
-			this.root = document.importNode(xml3dDoc.documentElement, true);
-		}
-		
-		this.root.style.width = "100%";
-		this.root.style.height = "100%";
-		parentElement.appendChild(this.root);
-		
-		// find or create defs element
-		this.defs = this.root.getElementsByTagNameNS(org.xml3d.xml3dNS, "defs")[0];
-		if (this.defs == undefined)
-		{
-			this.defs = document.createElementNS(org.xml3d.xml3dNS, "defs");
-			this.root.insertChild(this.defs,  this.root.firstChild);
-		}
-		
-		// bind message handlers
-		var thus = this;
-		
-		$(this.root).bind("mousedown", function (e){thus.mouseDown(e)});
-		$(this.root).bind("mouseup",   function (e){thus.mouseUp(e)});
-		$(this.root).bind("mousemove", function (e){thus.mouseMove(e)});
-		$(this.root).bind("scroll",    function (e){thus.scrollWheel(e)});
-		$(document).bind("keydown",   function (e){thus.keyDown(e)});
-		$(document).bind("keyup",     function (e){thus.keyUp(e)});
-		
-		// map for pressed keys
-		this.keyDownMap = {};
-		
-		// perform regular updates
-		this.scheduledUpdates = [];
-		setInterval(Kata.bind(this.update, this), 16);
-	};
-	
-	// push an update into the queue and return it's index
-	XML3DGraphics.prototype.scheduleUpdate = function(newUpdate) {
-		return this.scheduledUpdates.push(newUpdate) - 1;
-	};
-	
-	// remove an update from the queue by it's index
-	XML3DGraphics.prototype.cancelUpdate = function(updateIndex) {
-		delete this.scheduledUpdates[updateIndex];
-	};
-	
-	// handle updates
-	XML3DGraphics.prototype.update = function() {
-		for (var index in this.scheduledUpdates)
-		{
-			// update may reschedule itself again by returning false
-			// otherwise it is deleted from the list of update
-			if (this.scheduledUpdates[index]())
-				delete this.scheduledUpdates[index];
-		}
-	};
-
-	// Messages from the KataJS
-	
-	XML3DGraphics.prototype.methodTable = {};
-	
-	XML3DGraphics.prototype.methodTable["create"] = function(msg) {
-		console.log("create " + msg.id);
-		
-		this.objects[msg.id] = new XML3DVWObject(msg, this);
-	};
-	
-	XML3DGraphics.prototype.methodTable["mesh"] = function(msg) {
-		console.log("mesh " + msg.id);
-		
-		if (this.objects[msg.id] === undefined)
-			console.error("Cannot add a mesh. Object " + msg.id + " does not exist.");
-		
-		this.objects[msg.id].initMesh(
-			msg.mesh,
-			msg.type === undefined ? "xml3d" : msg.type
-		);
-	};
-	
-	XML3DGraphics.prototype.methodTable["move"] = function(msg) {
-		/*var EPS = 0.001;
-		
-		if ((this.lastMoveMsg == undefined ||
-			Math.abs(this.lastMoveMsg.pos[0] - msg.pos[0]) > EPS ||
-			Math.abs(this.lastMoveMsg.pos[1] - msg.pos[1]) > EPS ||
-			Math.abs(this.lastMoveMsg.pos[2] - msg.pos[2]) > EPS ||
-			Math.abs(this.lastMoveMsg.orient[0] - msg.orient[0]) > EPS ||
-			Math.abs(this.lastMoveMsg.orient[1] - msg.orient[1]) > EPS ||
-			Math.abs(this.lastMoveMsg.orient[2] - msg.orient[2]) > EPS ||
-			Math.abs(this.lastMoveMsg.orient[3] - msg.orient[3]) > EPS ||
-			this.lastMoveMsg.id != msg.id) &&
-			this.objects[msg.id].objType == "mesh")
-		{
-			console.debug("move " + msg.id);
-			console.debug(msg);
-			
-			this.lastMoveMsg = msg;
-		}*/
-			
-		
-		if (this.objects[msg.id] === undefined)
-			console.error("Cannot move an object " + msg.id + " .It does not exist.");
-		
-		this.objects[msg.id].move(msg, msg.interpolate == undefined ? true : msg.interpolate);
-	}
-	
-	XML3DGraphics.prototype.methodTable["animate"] = function(msg) {
-		console.log("animate " + msg.id);
-		
-		if (this.objects[msg.id] === undefined)
-			console.error("Cannot animate an object " + msg.id + ". It does not exist.");
-		
-		this.objects[msg.id].animate(msg.animation);
-	}
-	
-	XML3DGraphics.prototype.methodTable["camera"] = function(msg) {
-		console.log("camera " + msg.id);
-		
-		if (this.objects[msg.id] === undefined)
-			console.error("Cannot add a mesh. Object " + msg.id + " does not exist.");
-		
-		this.objects[msg.id].initCamera();
-	}
-	
-	XML3DGraphics.prototype.methodTable["attachcamera"] = function(msg) {
-		console.log("attachcamera " + msg.id);
-		
-		// TODO: implement
-	}
-	
-	XML3DGraphics.prototype.methodTable["destroy"] = function(msg) {
-		console.log("destroy " + msg.id);
-		
-		if (this.objects[msg.id] === undefined)
-			console.error("Cannot destroy  object " + msg.id + ". It does not exist.");
-		else
-		{
-			this.objects[msg.id].destroy();
-			delete this.objects[msg.id];
-		}
-	}
-	
-	XML3DGraphics.prototype.methodTable["unknown"] = function(msg) {
-		console.log(msg.msg + " " + msg.id);
-	};
-	
-	XML3DGraphics.prototype.send = function(obj) {
-		obj.msg = obj.msg.toLowerCase();
-		
-		if (this.methodTable[obj.msg])
-			this.methodTable[obj.msg].call(this, obj);
-		else
-			this.methodTable["unknown"].call(this, obj);
-	};
-	
-	// Messages to KataJS
-	
-	XML3DGraphics.prototype.setInputCallback = function(cb) {
-		this.inputCallback = cb;
-    };
-    
-    XML3DGraphics.prototype.extractMouseEventInfo = function(e){
-        var ev = {};
-        ev.type = e.type;
-        ev.shiftKey = e.shiftKey;
-        ev.altKey = e.altKey;
-        ev.ctrlKey = e.ctrlKey;
-        ev.which = e.button;
-        ev.x = e.clientX;
-        ev.y = e.clientY;
-        ev.screenX = e.screenX;
-        ev.screenY = e.screenY;
-        ev.clientX = e.clientX;
-        ev.clientY = e.clientY;
-        var el = null;
-        if (typeof(e.srcElement) != "undefined") {
-            el = e.srcElement;
-            ev.width = e.srcElement.clientWidth;
-            ev.height = e.srcElement.clientHeight;
-        }
-        else if (typeof(e.target != "undefined")) {
-            el = e.target;
-            ev.width = e.target.width;
-            ev.height = e.target.height;
-        }
-        else {
-            ev.width = 0;
-            ev.height = 0;
-        }
-        while (el != null) {
-            ev.x -= el.offsetLeft || 0;
-            ev.y -= el.offsetTop || 0;
-            el = el.offsetParent;
-        }
-        return ev;
-    };
-    
-    XML3DGraphics.prototype.mouseDown = function(e) {
-        this._buttonState |= Math.pow(2, e.button);
-        var ev = this.extractMouseEventInfo(e);
-        var msg = {
-            msg: "mousedown",
-            event: ev
-        };
-        if (ev.which == 2) {
-            document.body.style.cursor = "crosshair";
-        }
-        this.inputCallback(msg);
-    };
-    
-    XML3DGraphics.prototype.mouseUp = function(e){
-        this._buttonState &= 7 - Math.pow(2, e.button);
-        var ev = this.extractMouseEventInfo(e);
-        var msg = {
-            msg: "mouseup",
-            event: ev
-        };
-        if (ev.which == 2) {
-            document.body.style.cursor = "default";
-        }
-        this.inputCallback(msg);
-    };
-    
-    /*
-     * for now, we only send mouse moves if left button depressed
-     * otherwise we flood with messages.  Note right button is controlled by OS so we ignore
-     */
-    XML3DGraphics.prototype.mouseMove = function(e){
-        if (this._buttonState) {
-            var ev = this.extractMouseEventInfo(e);
-            var msg = {
-                msg: "mousemove",
-                event: ev
-            };
-            this.inputCallback(msg);
-        }
-    };
-
-    XML3DGraphics.prototype.keyDown = function(e){
-        if (Kata.suppressCanvasKeyInput) return;
-        this.keyDownMap[e.keyCode]=-1;
-        var ev = {};
-        ev.type = e.type;
-        ev.keyCode = e.keyCode;
-        ev.shiftKey = e.shiftKey;
-        ev.altKey = e.altKey;
-        ev.ctrlKey = e.ctrlKey;
-        var msg = {
-            msg: "keydown",
-            event: ev
-        };
-        this.inputCallback(msg);
-    };
-
-    XML3DGraphics.prototype.keyUp = function(e) {
-        if (!this.keyDownMap[e.keyCode]) {
-            return;
-        }
-        var ev = {};
-        ev.type = e.type;
-        ev.keyCode = e.keyCode;
-        ev.shiftKey = e.shiftKey;
-        ev.altKey = e.altKey;
-        ev.ctrlKey = e.ctrlKey;
-        var msg = {
-            msg: "keyup",
-            event: ev
-        };
-        var me=this;
-        this.keyDownMap[e.keyCode] = 1;
-        setTimeout(function () {                            /// wait to see if we're part of a bogus key repeat
-            if (me.keyDownMap[e.keyCode] == 1) {           /// if fail, then keydown (or another keyup?) occured in last 50 ms
-                me.keyDownMap[e.keyCode] = 0;              /// if no other events on this key, fire the real keyup event & clear map
-                me.inputCallback(msg);
-            }
-        }, 50);
-    };
-
-    XML3DGraphics.prototype.scrollWheel = function(e){
-        var ev = {};
-        ev.type = e.type;
-        ev.shiftKey = e.shiftKey;
-        ev.altKey = e.altKey;
-        ev.ctrlKey = e.ctrlKey;
-        if (e.wheelDelta != null) {         /// Chrome
-            ev.dy = e.wheelDelta;
-        }
-        else {                              /// Firefox
-            ev.dy = e.detail * -40;         /// -3 for Firefox == 120 for Chrome
-        }
-        var msg = {
-            msg: "wheel",
-            event: ev
-        };
-        this.inputCallback(msg);
-    };
-	
-    // Register as a GraphicsSimulation if possible.
+    // Register XML3D as available graphics driver
     Kata.GraphicsSimulation.registerDriver("XML3D", XML3DGraphics);
 }, "katajs/gfx/xml3dgfx.js");
