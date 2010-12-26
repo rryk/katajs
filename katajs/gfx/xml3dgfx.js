@@ -167,7 +167,7 @@ Kata.require([
 	}
 	
 	XML3DGraphics.prototype.methodTable["animate"] = function(msg) {
-		//console.log("animate " + msg.id);
+		//console.log("animate " + msg.id + " " + msg.animation);
 		
 		if (this.objects[msg.id] === undefined)
 			console.error("Cannot animate an object " + msg.id + ". It does not exist.");
@@ -207,6 +207,7 @@ Kata.require([
 	
 	XML3DGraphics.prototype.methodTable["unknown"] = function(msg) {
 		console.log(msg.msg + " " + msg.id);
+		//console.log(msg);
 	};
 	
 	XML3DGraphics.prototype.send = function(obj) {
@@ -377,7 +378,7 @@ Kata.require([
 			{
 				this.objType = "mesh";
 				this.mesh = mesh;
-				thus = this;
+				var thus = this;
 				
 				// load mesh asynchronously
 				$.ajax({
@@ -417,7 +418,7 @@ Kata.require([
 							thus.group = document.createElementNS(org.xml3d.xml3dNS, "group");
 							thus.group.setAttribute("id", thus.id);
 							thus.group.transform = "#" + thus.transformID;
-							// TODO: set shader
+							// TODO: set shader when support will be added to JavascriptGraphicsAPI
 							thus.gfx.root.appendChild(thus.group);
 							
 							// add mesh to the group
@@ -565,10 +566,11 @@ Kata.require([
 		} else {
 			// stop previous animation
 			if (this.runningAnimations != undefined) {
-				for (var i in this.runningAnimations) {
+				for (var i in this.runningAnimations)
 					org.xml3d.stopAnimation(this.runningAnimations[i]);
-					delete this.runningAnimations[i];
-				}
+				
+				// reinitalize array to free memory
+				this.runningAnimations = [];
 			}
 			
 			for (var i in this.animations[animationName]) {
@@ -589,13 +591,15 @@ Kata.require([
 			if (this.lastScheduledUpdateIndex != undefined)
 				this.gfx.cancelUpdate(this.lastScheduledUpdateIndex);
 			
+			// remove avatar from the scene
 			this.group.parentNode.removeChild(this.group);
 			this.transform.parentNode.removeChild(this.transform);
 		} else if (this.objType == "camera") {
-			// detach camera if was attached
+			// detach camera if attached
 			if (this.gfx.root.activeView == "#" + this.viewID)
 				this.gfx.root.activeView = "";
 			
+			// remove view from the scene
 			this.view.parentNode.removeChild(this.view);
 		}
 	}
