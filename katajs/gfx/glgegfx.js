@@ -35,10 +35,17 @@
 var GLGEGraphics=function(callbackFunction,parentElement) {
     this.mCurTime=new Date();
     this.callback=callbackFunction;
+    this.doubleBuffer=3;
+    this.mAnimatingObjects={};
+    this.windowVisible=true;
+    this.mDoCaptureCanvas=0;//+1 for each request
     var thus=this;
     {
         var canvas, gl;
         canvas = document.createElement('canvas');
+        if (!GLGEGraphics.GLOBAL_KEYBOARD_GRAB) {
+            canvas.setAttribute('tabindex', '0');
+        }
         if (canvas) {
             try {
                 gl = canvas.getContext("experimental-webgl", {});
@@ -60,6 +67,7 @@ var GLGEGraphics=function(callbackFunction,parentElement) {
         if (!canvas) {
             this.webGlCanvasError(parentElement, 'HTMLCanvas');
         }else {
+            canvas.focus();
             var resizeHandler = function() {
                 var width = Math.max(1, canvas.clientWidth);
                 var height = Math.max(1, canvas.clientHeight);
@@ -69,8 +77,10 @@ var GLGEGraphics=function(callbackFunction,parentElement) {
                 if (thus.mCamera) thus.mCamera.setAspect(GLGEGraphics.canvasAspect);
                 canvas.sizeInitialized_ = true;
                 thus.displayInfo = {width: canvas.width, height: canvas.height};
+                thus.newEvent();
             };
             this.renderer=new GLGE.Renderer(canvas);
+            this.renderer.cullFaces=true;
                 //this.keys=new GLGE.KeyInput();
             
             window.addEventListener('resize', resizeHandler, false);
@@ -79,8 +89,6 @@ var GLGEGraphics=function(callbackFunction,parentElement) {
         this.mClientElement=canvas;
     }
     
-    var lasttime = 0;
-    var frameratebuffer = 60;
     this.mCurTime=new Date();
     this.mObjectUpdates = {}; // map id -> function
     this.mSpaceRoots={};
@@ -92,25 +100,42 @@ var GLGEGraphics=function(callbackFunction,parentElement) {
     this._lastMouseDown = null;
     this._mouseMoveSinceLastRender = false;
     function render(){
-        thus._mouseMoveSinceLastRender = false;
-        thus.mCurTime=new Date();
-        var now = parseInt(thus.mCurTime.getTime());
-        frameratebuffer = Math.round(((frameratebuffer * 9) + 1000 / (now - lasttime)) / 10);
-        //mouselook();
-        //checkkeys();
-        thus.renderer.render();
-        lasttime = now;
-        for (var id in thus.mObjectUpdates) {        
-            thus.mObjectUpdates[id].update(thus);
-            
-        }
-	    if (Kata.userRenderCallback) {
-		    Kata.userRenderCallback(thus.mCurTime);
+        thus.render();
 	}
         
-    }
     
+    function initialTextureLoadHack(){
+        var anyAnim=false;
+        for (animObject in thus.mAnimatingObjects) {
+            anyAnim=true;
+            break;
+        }
+        if (!anyAnim){
+            this.newEvent();
+        }
+    }
+    //setInterval(initialTextureLoadHack,533);
     setInterval(render, 16);
+    if (GLGEGraphics.GLOBAL_KEYBOARD_GRAB) {
+        document.addEventListener('keydown',
+                                  function (e){thus._keyDown(e);},
+                                  true);
+    }
+    // keyup handler is global, so that if you lose focus while the key is
+    // pressed, you still get the event.
+    document.addEventListener('keyup',
+                              function(e){thus._keyUp(e);},
+                              true);
+    canvas.addEventListener('keydown',
+                            function (e){thus._keyDown(e);},
+                            true);
+    
+    window.addEventListener('focus',
+                            function (e){thus.windowVisible=true;},
+                            false);
+    window.addEventListener('blur',
+                            function (e){thus.windowVisible=false;},
+                            false);
     canvas.addEventListener('mousedown',
                             function (e){thus._mouseDown(e);},
                             true);
@@ -120,17 +145,14 @@ var GLGEGraphics=function(callbackFunction,parentElement) {
     canvas.addEventListener('mousemove',
                             function(e){thus._mouseMove(e);},
                             true);
-    document.addEventListener('keydown',
-                            function (e){thus._keyDown(e);},
-                            true);
-    document.addEventListener('keyup',
-                            function(e){thus._keyUp(e);},
-                            true);
     canvas.addEventListener('mousewheel',                           /// Chrome
                             function(e){thus._scrollWheel(e);},
                             true);
     canvas.addEventListener('DOMMouseScroll',                       /// FF
                             function(e){thus._scrollWheel(e);},
+                            true);
+    canvas.addEventListener('click',
+                            function(e){thus.mClientElement.focus();},
                             true);
     canvas.addEventListener('contextmenu', 
     function(e){
@@ -145,15 +167,116 @@ var GLGEGraphics=function(callbackFunction,parentElement) {
 
 Kata.require([
     'katajs/oh/GraphicsSimulation.js',
-    ['katajs/gfx/WebGLCompat.js', 'externals/GLGE/glge_math.js', 'externals/GLGE/glge.js', 'externals/GLGE/glge_collada.js']
-], function(){
+    ['katajs/gfx/WebGLCompat.js',
+     'katajs/gfx/layer0.js',
+     'katajs/gfx/layer1.js',
+     'katajs/gfx/layer2.js',
+     'katajs/gfx/layer2_no_sunbeams.js',
+     'externals/GLGE/src/core/glge.js',
+     'externals/GLGE/src/core/glge_event.js',
+     'externals/GLGE/src/core/glge_animatable.js',
+     'externals/GLGE/src/core/glge_document.js',
+     'externals/GLGE/src/core/glge_math.js',
+     'externals/GLGE/src/core/glge_messages.js',
+     'externals/GLGE/src/core/glge_placeable.js',
+     'externals/GLGE/src/core/glge_quicknote.js',
+     'externals/GLGE/src/core/glge_jsonloader.js',
+     'externals/GLGE/src/core/glge_group.js',
+     'externals/GLGE/src/scene/glge_scene.js',
+     'externals/GLGE/src/scene/glge_light.js',
+     'externals/GLGE/src/scene/glge_camera.js',
+     'externals/GLGE/src/renderable/glge_object.js',
+     'externals/GLGE/src/renders/glge_renderer.js',
+     'externals/GLGE/src/extra/glge_input.js',
+     'externals/GLGE/src/extra/glge_particles.js',
+     'externals/GLGE/src/extra/glge_filter2d.js',
+     'externals/GLGE/src/extra/glge_xmlparser.js',
+     'externals/GLGE/src/extra/glge_wavefront.js',
+     'externals/GLGE/src/extra/glge_collada.js',
+     'externals/GLGE/src/geometry/glge_mesh.js',
+     'externals/GLGE/src/material/glge_texturecube.js',
+     'externals/GLGE/src/material/glge_texture.js',
+     'externals/GLGE/src/material/glge_texturevideo.js',
+     'externals/GLGE/src/material/glge_texturecanvas.js',
+     'externals/GLGE/src/material/glge_material.js',
+     'externals/GLGE/src/material/glge_texturecamera.js',
+     'externals/GLGE/src/material/glge_multimaterial.js',
+     'externals/GLGE/src/material/glge_materiallayer.js',
+     'externals/GLGE/src/renderable/glge_text.js',
+     'externals/GLGE/src/renderable/glge_lod.js',
+     'externals/GLGE/src/animation/glge_actionchannel.js',
+     'externals/GLGE/src/animation/glge_animationvector.js',
+     'externals/GLGE/src/animation/glge_animationcurve.js',
+     'externals/GLGE/src/animation/glge_animationpoints.js',
+     'externals/GLGE/src/animation/glge_action.js']], function(){
+    GLGEGraphics.prototype.newEvent=function (){
+        this.doubleBuffer=3;
+    };
+    GLGEGraphics.prototype.render=function () {
+        var thus=this;
+        thus._mouseMoveSinceLastRender = false;
+        thus.mCurTime=new Date();
+        var now = parseInt(thus.mCurTime.getTime());
+        //mouselook();
+        //checkkeys();
+        var anyUpdates=false;
+        for (var id in thus.mObjectUpdates) {        
+            thus.mObjectUpdates[id].update(thus);
+            thus.newEvent(); 
+            anyUpdates=true;
+        }
+        var didRender=false;
+        if (!thus.doubleBuffer)
+            for (animObject in thus.mAnimatingObjects) {
+                if (thus.windowVisible){
+                    thus.newEvent();
+                }
+                break;
+            }
+        if (thus.doubleBuffer >0) {
+            thus.doubleBuffer-=1;
+            thus.renderer.render();            
+            didRender=true;
+        }
+        if (didRender){
+            var scene=this.renderer.getScene();            
+            if (scene) {
+                var filter=scene.getFilter2d();
+                if (filter) {
+                    var lights=scene.getLights();
+                    var pos=[0,0,0,1];
+                    for (var i=0;i<lights.length;++i) {
+                        if (i==0||lights[i].getCastShadows())
+                            pos=GLGE.mulMat4Vec4(lights[i].getModelMatrix(),GLGE.Vec4(0,0,0,1));
+                        
+                    }
+	                var lightloc=GLGE.mulMat4Vec4(scene.camera.getProjectionMatrix(),
+                                                  GLGE.mulMat4Vec4(scene.camera.getViewMatrix(),
+                                                                   pos));
 
+	                lightloc=[(lightloc[0]/lightloc[3]+1)/2,
+                                  (lightloc[1]/lightloc[3]+1)/2,
+                                  (lightloc[2]/lightloc[3]+1)/2];
+	                filter.setUniform("3fv","lightpos",new Float32Array(lightloc));
+	                var invProjView=GLGE.mulMat4(GLGE.inverseMat4(scene.camera.getViewMatrix()),GLGE.inverseMat4(scene.camera.getProjectionMatrix()));
+	                filter.setUniform("Matrix4fv","invProjView",new Float32Array(GLGE.transposeMat4(invProjView)));
+                }
+            }
+        }
+	    if (Kata.userRenderCallback) {
+		    Kata.userRenderCallback(thus.mCurTime);
+        }
+        if (this.mDoCaptureCanvas&&!anyUpdates) {
+            this.methodTable["CaptureCanvas"].call(this,{});
+            this.mDoCaptureCanvas-=1;
+        }
+    };
     /** Static initialization method. */
     GLGEGraphics.initialize = function(scenefile, cb) {
         g_GLGE_doc = new GLGE.Document();
         g_GLGE_doc.onLoad = cb;
         g_GLGE_doc.load(scenefile);
-    }
+    };
 
     function RenderTarget(graphicsSystem, canvas,textureCanvas) {
         this.mGraphicsSystem=graphicsSystem;
@@ -185,6 +308,113 @@ Kata.require([
         }
         this.mSpaceRoot=null;
     };
+    function getGroupBoundingVolume (thus, currentMatrix){
+        var localMatrix=thus.getLocalMatrix();
+        if (currentMatrix) {
+            localMatrix=GLGE.mulMat4(currentMatrix,localMatrix);
+        }
+	    var boundingVolume=null;
+	    for(var i=0; i<thus.children.length;i++){
+		    //if(thus.children[i].getBoundingVolume){
+			    if(!boundingVolume) {
+				    boundingVolume=computeBoundingVolume(thus.children[i],localMatrix);
+			    }else{
+				    boundingVolume.addBoundingVolume(computeBoundingVolume(thus.children[i],localMatrix));
+			    }
+		    //}
+	    }
+	    if(!boundingVolume) boundingVolume=new GLGE.BoundingVolume(0,0,0,0,0,0);
+	    return boundingVolume;
+    };
+
+    function getObjectBoundingVolume (thus, currentMatrix){
+        var localMatrix=thus.getLocalMatrix();
+        if (currentMatrix) {
+            localMatrix=GLGE.mulMat4(currentMatrix,localMatrix);
+        }	
+	    var matrix=thus.getModelMatrix();
+		var multimaterials=thus.multimaterials;
+		var boundingVolume=null;
+		for(var i=0;i<multimaterials.length;i++){
+			if(multimaterials[i].lods[0].mesh){
+				if(!boundingVolume){
+					boundingVolume=getMeshBoundingVolume(multimaterials[i].lods[0].mesh,localMatrix);
+				}else{
+					boundingVolume.addBoundingVolume(getMeshBoundingVolume(multimaterials[i].lods[0].mesh,localMatrix));
+				}
+			}
+		}
+		if(!boundingVolume) boundingVolume=new GLGE.BoundingVolume(0,0,0,0,0,0);
+        return boundingVolume;
+    };
+
+    function getMeshBoundingVolume(thus, currentMatrix) {
+        function mulMat4Vec3(mat1,vec2){
+	        return GLGE.Vec3(mat1[0]*vec2[0]+mat1[1]*vec2[1]+mat1[2]*vec2[2]+mat1[3],
+			                 mat1[4]*vec2[0]+mat1[5]*vec2[1]+mat1[6]*vec2[2]+mat1[7],
+			                 mat1[8]*vec2[0]+mat1[9]*vec2[1]+mat1[10]*vec2[2]+mat1[11]);
+        };
+
+		var minX,maxX,minY,maxY,minZ,maxZ;
+		for(var i=0;i<thus.buffers.length;i++){
+			if(thus.buffers[i].name=="position") {
+                var positions=thus.buffers[i].data;
+		        
+                if (currentMatrix) {
+                    if (positions.length>=3) {               
+                        var loc=mulMat4Vec3(currentMatrix,positions.slice(0,3));
+			            minX=maxX=loc[0];
+			            minY=maxY=loc[1];
+			            minZ=maxZ=loc[2];
+                    }else {
+                        minX=minY=minZ=maxX=maxY=maxZ=0;
+                    }
+		            for(var j=3;j+2<positions.length;j=j+3){
+                        var loc=mulMat4Vec3(currentMatrix,positions.slice(j,j+3));
+				        minX=Math.min(minX,loc[0]);
+				        maxX=Math.max(maxX,loc[0]);
+				        minY=Math.min(minY,loc[1]);
+				        maxY=Math.max(maxY,loc[1]);
+				        minZ=Math.min(minZ,loc[2]);
+				        maxZ=Math.max(maxZ,loc[2]);
+		            }
+                    
+                }else {            
+                    if (positions.length>=3) {               
+			            minX=maxX=positions[0];
+			            minY=maxY=positions[1];
+			            minZ=maxZ=positions[2];
+                    }else {
+                        minX=minY=minZ=maxX=maxY=maxZ=0;
+                    }
+		            for(var j=3;j+3<positions.length;i=j+3){
+				        minX=Math.min(minX,positions[i]);
+				        maxX=Math.max(maxX,positions[i]);
+				        minY=Math.min(minY,positions[i+1]);
+				        maxY=Math.max(maxY,positions[i+1]);
+				        minZ=Math.min(minZ,positions[i+2]);
+				        maxZ=Math.max(maxZ,positions[i+2]);
+			            
+		            }
+                }
+            }
+        }
+		return new GLGE.BoundingVolume(minX,maxX,minY,maxY,minZ,maxZ);
+	}
+
+
+    function computeBoundingVolume(glge_object, currentMatrix){
+        switch (glge_object.getBoundingVolume){
+        case GLGE.Group.prototype.getBoundingVolume:
+            return getGroupBoundingVolume(glge_object,currentMatrix);
+        case GLGE.Mesh.prototype.getBoundingVolume:
+            return getMeshBoundingVolume(glge_object,currentMatrix);
+        case GLGE.Object.prototype.getBoundingVolume:
+        default:
+            return getObjectBoundingVolume(glge_object,currentMatrix);
+        }
+        
+    }
     function VWObject(id,time,spaceid,spaceroot) {
         //var pack=spaceroot.mElement.client.createPack();
         
@@ -193,6 +423,7 @@ Kata.require([
         //this.mPack = pack;
         this.mNode = new GLGE.Group(id);
         this.mMesh = null;
+        this.mBounds=[0,0,0,1];
         this.mLabel = null;
         this.mCurLocation=Kata.LocationIdentity(new Date(0));
         this.mPrevLocation=Kata.LocationIdentity(new Date(0));
@@ -203,39 +434,54 @@ Kata.require([
 
         this.mLoaded = false;
     };
-
+    VWObject.prototype.getMeshAspectRatio = function () {
+        if (!this.bv) return [0,0,0];
+        var retval=[this.bv.limits[1]-this.bv.limits[0],
+                    this.bv.limits[3]-this.bv.limits[2],
+                    this.bv.limits[5]-this.bv.limits[4]];
+        retval[0]/=this.bv.radius*2;
+        retval[1]/=this.bv.radius*2;
+        retval[2]/=this.bv.radius*2;
+        return retval;
+    };
+    VWObject.prototype.queryMeshAspectRatio = function (gfx) {
+        gfx._inputCb({msg:"MeshAspectRatio",id:this.mID,aspect:this.getMeshAspectRatio()});
+    };
     /// note: animation ignored
-    VWObject.prototype.createMesh = function(gfx, path, animation, offset, scale) {
+    VWObject.prototype.createMesh = function(gfx, path, animation, bounds) {
         if (path == null) {
             throw "loadScene with null path";
         }
         if (path.lastIndexOf(".dae")==-1) {
             path += ".dae";            
         }
-        if (offset === undefined || offset === null)
-            offset = [0, 0, 0];
         console.log("Loading: " + path);
         this.mMeshURI = path;
         var thus = this;
         var clda = new GLGE.Collada();
+        this.mLoading=true;
+        if (this.mID in gfx.mAnimatingObjects)
+            delete gfx.mAnimatingObjects[thus.mID];
         var loadedCallback;
         loadedCallback=function(){
-            var bv=clda.getBoundingVolume(true);
+            var bv=computeBoundingVolume(clda);//clda.getBoundingVolume(true);
             var maxv=bv.radius;
             var colladaUnitRescale=1/maxv;
+            
             //console.log("Scaling by "+colladaUnitRescale+" instead of "+scale);
-            //console.log("Offsetting by -["+bv.center+"] instead of "+offset);
-            clda.setScaleX(maxv?scale[0]*colladaUnitRescale:1);
-            clda.setScaleY(maxv?scale[1]*colladaUnitRescale:1);
-            clda.setScaleZ(maxv?scale[2]*colladaUnitRescale:1);
-            clda.setLocX(offset[0]-(bv.center[0])*colladaUnitRescale);
-            clda.setLocY(offset[1]-(bv.center[1])*colladaUnitRescale);
-            clda.setLocZ(offset[2]-(bv.center[2])*colladaUnitRescale);            
+            //console.log("Offsetting by -["+thus.bv.center+"] instead of "+offset);
+            clda.setScaleX(maxv?thus.mBounds[3]*colladaUnitRescale:1);
+            clda.setScaleY(maxv?thus.mBounds[3]*colladaUnitRescale:1);
+            clda.setScaleZ(maxv?thus.mBounds[3]*colladaUnitRescale:1);
+            clda.setLocX(thus.mBounds[0]-(bv.center[0]*colladaUnitRescale)*thus.mBounds[3]);
+            clda.setLocY(thus.mBounds[1]-(bv.center[1]*colladaUnitRescale)*thus.mBounds[3]);
+            clda.setLocZ(thus.mBounds[2]-(bv.center[2]*colladaUnitRescale)*thus.mBounds[3]);
+
             gfx._inputCb({msg:"loaded",id:thus.mID});
             clda.removeEventListener("loaded",loadedCallback);
 
             thus.mLoaded = true;
-
+            gfx.newEvent();
             // If somebody set an animation *while* we were loading, honor that request now
             if (thus.mCurAnimation) {
                 // Clear out first to make sure we actually run it
@@ -243,14 +489,53 @@ Kata.require([
                 thus.mCurAnimation = "";
                 thus.animate(anim);
             }
+            function hasAnimations(node) {
+                if (node.getAnimation()){
+                    return true;
+                }
+                var child;
+                var i;
+                if (node.children)
+                    for (i=0;i<node.children.length;++i){
+                        child=node.children[i];
+                        if (hasAnimations(child))
+                            return true;
+                    }
+                return false;
+            }
+            
+            if (thus.mMesh==clda) {
+                thus.bv=bv;
+                delete thus.mLoading;
+                if (hasAnimations(clda)) {
+                    gfx.mAnimatingObjects[thus.mID]=thus.mNode;
+                    setTimeout(function(){gfx.newEvent();},8000);
+                    setTimeout(function(){gfx.newEvent();},4000);
+                }
+                if (thus.mQueryAspectCount){
+                    for (var i=0;i<thus.mQueryAspectCount;++i) {
+                        thus.queryMeshAspectRatio(gfx);
+                    }
+                    delete thus.mQueryAspectCount;                    
+                }
+            }else if (thus.mQueryAspectCount && thus.mQueryAspectCount > 1){
+                thus.queryMeshAspectRatio(gfx);
+                thus.mQueryAspectCount--;//update it once before the load so tha
+            }
+        };
+        var downloadedCallback=function(){
+            gfx.newEvent();
+            gfx._inputCb({msg:"downloadComplete",id:thus.mID});
+            clda.removeEventListener("downloadComplete",downloadedCallback);
         };
         clda.addEventListener("loaded",loadedCallback);
+        clda.addEventListener("downloadComplete",downloadedCallback);
         clda.setDocument(this.mMeshURI);
     
-        if (!scale) scale = [1.0, 1.0, 1.0];
-        clda.setScaleX(scale[0]);
-        clda.setScaleY(scale[1]);
-        clda.setScaleZ(scale[2]);
+        
+        clda.setScaleX(bounds[3]);
+        clda.setScaleY(bounds[3]);
+        clda.setScaleZ(bounds[3]);
         /// danx0r: removing this hack, it's now dealt with in glge etc
         /*
         clda.setRotMatrix(GLGE.Mat4([1, 0 , 0,  0,
@@ -258,11 +543,10 @@ Kata.require([
 					                 0, -1, 0, 0,
 					                 0, 0, 0, 1]));
         */
-        if (offset) {
-            clda.setLocX(offset[0]);
-            clda.setLocY(offset[1]);
-            clda.setLocZ(offset[2]);            
-        }
+        clda.setLocX(bounds[0]);
+        clda.setLocY(bounds[1]);
+        clda.setLocZ(bounds[2]);
+        this.mBounds=bounds;
         this.mNode.addCollada(clda);
         this.mMesh = clda;
         return clda;
@@ -318,9 +602,25 @@ Kata.require([
         var l=Kata.LocationExtrapolate(this.mCurLocation, graphics.mCurTime);
         this.mNode.setLoc(l.pos[0],l.pos[1],l.pos[2]);
         // Setting scale on cameras does wonky things to lighting
-        if (!this.mCamera) {
-            this.mNode.setScale(l.scale[0],l.scale[1],l.scale[2]);
+        //if (!this.mCamera) {
+        var colladaUnitRescale=this.bv?1/this.bv.radius:1.0;
+        if (this.mMesh) {
+            this.mMesh.setScale(l.scale[3]*colladaUnitRescale,l.scale[3]*colladaUnitRescale,l.scale[3]*colladaUnitRescale);
+            if (this.bv) {
+                var locx=(l.scale[0]-(this.bv.center[0]*colladaUnitRescale)*l.scale[3]);
+                var locy=(l.scale[1]-(this.bv.center[1]*colladaUnitRescale)*l.scale[3]);
+                var locz=(l.scale[2]-(this.bv.center[2]*colladaUnitRescale)*l.scale[3]);
+                this.mMesh.setLocX(locx);
+                this.mMesh.setLocY(locy);
+                this.mMesh.setLocZ(locz);
+            }else {
+                this.mMesh.setLocX(l.scale[0]);
+                this.mMesh.setLocY(l.scale[1]);
+                this.mMesh.setLocZ(l.scale[2]);
+            }
         }
+        this.mBounds=l.scale;        
+        //}
         this.mNode.setQuat(l.orient[0],l.orient[1],l.orient[2],l.orient[3]);
         if (this.stationary(graphics.mCurTime)) {
             graphics.removeObjectUpdate(this);        
@@ -344,8 +644,10 @@ Kata.require([
     };
     VWObject.prototype.animate = function(anim_name) {
         var mesh = this.mMesh;
-        if (!mesh)
+        if (!mesh) {
             Kata.warn("Couldn't handle animate request.");
+            return;            
+        }
 
         if (anim_name == this.mCurAnimation) return;
 
@@ -443,11 +745,18 @@ Kata.require([
         }
     };
 
+    var mainSpace;
     function SpaceRoot(glgegfx, element, spaceID) {
         this.mElement = element;
         //this.mPack = this.mElement.client.createPack();
 //        this.mScene = new GLGE.Scene(spaceID);
-        this.mScene = g_GLGE_doc.getElement("mainscene");
+        if (!mainSpace) {
+            mainSpace=spaceID;
+        }
+        if (mainSpace==spaceID)
+            this.mScene = g_GLGE_doc.getElement("mainscene");
+        else
+            this.mScene = new GLGE.Scene(spaceID);
         this.mScene.mSpaceID = spaceID;
         this.mDefaultRenderView = new RenderTarget(glgegfx, element, null);
         //this.mDefaultRenderView.createBasicView([0,0,0,0], [0,0,0,0]);
@@ -466,8 +775,10 @@ Kata.require([
     
     
     GLGEGraphics.prototype.send=function(obj) {
-        if (obj.msg!="Custom")
+        if (obj.msg!="Custom"){
             this.methodTable[obj.msg].call(this, obj);
+            this.newEvent();
+        }
     };
     GLGEGraphics.prototype.setInputCallback=function(cb) {
         this._inputCb = cb;
@@ -587,6 +898,8 @@ Kata.require([
             this._inputCb(ev);
         }
         // Prevent selecting.
+        window.focus();
+        e.target.focus();
         e.preventDefault && e.preventDefault();
     };
     
@@ -664,6 +977,10 @@ Kata.require([
         };
         this._keyDownMap[e.keyCode]=-1;
         this._inputCb(msg);
+        if (e.keyCode != 9 && !GLGEGraphics.GLOBAL_KEYBOARD_GRAB) {
+            // don't prevent tab -- refocusing
+            e.preventDefault && e.preventDefault();
+        }
     };
 
     GLGEGraphics.prototype._keyUp = function(e) {
@@ -719,23 +1036,25 @@ Kata.require([
         // We need some concept of focus for this to work well methinks.
         //e.preventDefault && e.preventDefault();
     };
-
-    GLGEGraphics.prototype.methodTable["Create"]=function(msg) {//this function creates a scene graph node
-        var s = msg.spaceid;
-        if (!s) {
+    GLGEGraphics.prototype.createOrReturnSpaceRoot=function(s) {
+    
+        if (!s)
             s="";
-        }
         if (!(s in this.mSpaceRoots)) {
             var dl =new SpaceRoot(this, this.mClientElement, s);
             this.mSpaceRoots[s] = dl;
-
+            
             var rootsEmpty=true;
             for (var i in this.mSpaceRoots) {
                 rootsEmpty=false;
                 break;
             }
         }
-        var spaceRoot=this.mSpaceRoots[s];
+        return this.mSpaceRoots[s];
+    };
+
+    GLGEGraphics.prototype.methodTable["Create"]=function(msg) {//this function creates a scene graph node
+        var spaceRoot=this.createOrReturnSpaceRoot(msg.spaceid);
         var newObject;
         this.mObjects[msg.id]=newObject=new VWObject(msg.id,msg.time,msg.spaceid,spaceRoot);
         this.moveTo(newObject,msg);
@@ -846,6 +1165,9 @@ Kata.require([
             vwObject.label(msg.label, msg.offset);
     };
     GLGEGraphics.prototype.methodTable["Destroy"]=function(msg) {
+        if (msg.id in this.mAnimatingObjects)
+            delete this.mAnimatingObjects[msg.id];
+
         if (msg.id in this.mObjects) {
             var vwObject=this.mObjects[msg.id];
             var children=vwObject.mNode.getChildren();
@@ -881,16 +1203,28 @@ Kata.require([
     GLGEGraphics.prototype.methodTable["Mesh"]=function(msg) {
         if (msg.mesh && msg.id in this.mObjects) {
             var vwObject = this.mObjects[msg.id];
-            vwObject.createMesh(this, msg.mesh, msg.anim, msg.center?[-msg.center[0],-msg.center[1],-msg.center[2]]:null, msg.scale, msg.bounds);
-            if (msg.up_axis == "Z_UP") {
-                this.moveTo(vwObject, {
-                    // FIXME: needs to be permanent, so future setOrientations will be relative to this
-                    orient: [-0.7071067805519557, 0, 0, 0.7071067818211394]
-                });
-            }
+            vwObject.createMesh(this, msg.mesh, msg.anim, msg.scale);
+            /// old cruft code, disabling
+            //if (msg.up_axis == "Z_UP") {
+            //    this.moveTo(vwObject, {
+            //        // FIXME: needs to be permanent, so future setOrientations will be relative to this
+            //        orient: [-0.7071067805519557, 0, 0, 0.7071067818211394]
+            //    });
+            //}
             vwObject.update(this);
         }
     };
+    GLGEGraphics.prototype.methodTable["QueryMeshAspectRatio"]=function(msg){
+        var vwObject=this.mObjects[msg.id];
+        if (vwObject.mLoading){
+            if (vwObject.mQueryAspectCount){
+                vwObject.mQueryAspectCount++;
+            }else vwObject.mQueryAspectCount=1;
+        }else {
+            vwObject.queryMeshAspectRatio(this);
+        }
+    };
+
     GLGEGraphics.prototype.methodTable["DestroyMesh"]=function(msg) {
         if (msg.id in this.mObjects) {
             var vwObject=this.mObjects[msg.id];
@@ -939,6 +1273,66 @@ Kata.require([
             }
         }
     };
+    GLGEGraphics.prototype.methodTable["Background"]=function(msg) {
+        var spaceRoot=this.createOrReturnSpaceRoot(msg.spaceid);
+        var filter=spaceRoot.mFilter;
+        var filterTextures=spaceRoot.mFilterTextures;
+        var filterTextureNames=spaceRoot.mFilterTextureNames;
+        if ((!filter)||spaceRoot.mSunBeams!=msg.sunbeams){
+            spaceRoot.mSunBeams=msg.sunbeams;
+            filterTextures=(spaceRoot.mFilterTextures=[]);
+            filterTextureNames=(spaceRoot.mFilterTextureNames=[]);
+            filter= new GLGE.Filter2d();
+            spaceRoot.mScene.setFilter2d(filter);
+            if (msg.sunbeams) {
+                filter.addPass(layer0_glsl,1024,1024);
+                filter.addPass(layer1_glsl,1024,1024);
+                filter.addPass(layer2_glsl);
+            }else {
+                filter.addPass(layer0_glsl,1024,1024);
+                filter.addPass(layer2_no_sunbeams_glsl);                
+            }
+        }
+        var allSame=(filterTextureNames.length==msg.curtextures.length*2);
+        filterTextureNames.length=msg.curtextures.length*2;
+        for (var i=0;i<msg.curtextures.length*2;++i){
+            var texName=msg.curtextures[(i>>1)];
+            if (msg.prevtextures&&i%2!=0) {
+                texName=msg.prevTextures[(i>>1)];
+            }
+            if (filterTextureNames[i]!=texName){
+                allSame=false;
+                filterTextureNames[i]=texName;
+            }
+        }
+
+        if (!allSame) {
+            var i;
+            for (i=0;i<filterTextures.length;++i) {
+                filter.removeTexture(filterTextures[i]);
+            }
+            filterTextures.length=0;
+            var memoizedTextures={};
+            for (i=0;i<filterTextureNames.length;++i) {
+                if (filterTextureNames[i] in memoizedTextures){
+                    filterTextures[i]=memoizedTextures[filterTextureNames[i]];
+                }else {
+                    filterTextures[i]=new GLGE.Texture();
+                    filterTextures[i].setSrc(filterTextureNames[i]);
+                    memoizedTextures[filterTextureNames[i]]=filterTextures[i];
+                    filter.addTexture(filterTextures[i]);
+                }
+            }
+        }
+        if(((!msg.curtextures)||(msg.curtextures&&msg.curtextures.length==0))&&((!msg.prevtextures)||msg.prevtextures.length==0)) {
+            spaceRoot.mFilter=null;
+            spaceRoot.mScene.setFilter2d(null);
+            spaceRoot.mScene.setBackgroundColor("#222");
+        }else {
+            spaceRoot.mScene.setBackgroundColor("#f0f");           
+        }
+        
+    };
     GLGEGraphics.prototype.methodTable["DetachCamera"]=function(msg) {
         if (msg.id in this.mObjects) {
             var cam = this.mObjects[msg.id];
@@ -962,6 +1356,8 @@ Kata.require([
             delete this._enabledEvents[msg.type];
         }
     };
+    
+        
     GLGEGraphics.prototype.methodTable["Highlight"]=function(msg) {
         var obj = this.mObjects[msg.id];
         if (obj) {
@@ -973,6 +1369,56 @@ Kata.require([
         }
     };
 
+    GLGEGraphics.prototype.methodTable["Shadows"]=function(msg) {
+        var obj = this.mObjects[msg.id];
+        if (obj) {
+            var spaceRoot=this.createOrReturnSpaceRoot(msg.spaceid);
+            var lights=spaceRoot.mScene.getLights();
+            var index=0;
+            if (msg.index!==undefined){                
+                index=msg.index;
+                if (msg.index<0)
+                    index+=lights.length;
+            }
+            if (lights.length) {                
+                if (msg.enable) {
+                    for (var i=0;i<lights.length;++i){
+                        var ligh=lights[(i+index)%lights.length];
+                        if (ligh.id.indexOf("shadowlight")!=-1){
+                            console.log("Turn on "+i+index)
+                            ligh.enableLight();
+                        }
+                        if (ligh.id.indexOf("mainlight")!=-1){
+                            console.log("Turn off "+i+index)
+                            ligh.disableLight();
+                        }else 
+                        if (ligh.getType()==GLGE.L_SPOT) {
+                            ligh.setCastShadows(true);
+                            break;                            
+                        }
+                    }
+                } else {
+                    for (var j=0;j<lights.length;++j){
+                        var ligh=lights[j];
+                        if (ligh.id.indexOf("shadowlight")!=-1){
+                            console.log("Turn off "+j)
+                            ligh.disableLight();
+                        }
+                        if (ligh.id.indexOf("mainlight")!=-1){
+                            console.log("Turn on "+j)
+                            ligh.enableLight();
+                        }
+                    }
+                    if (msg.index!==undefined)
+                        lights[index%lights.length].setCastShadows(false);
+                    else for (var j=0;j<lights.length;++j){
+                        lights[j].setCastShadows(false);
+                    }
+                }
+            }            
+        }
+    };
+
     GLGEGraphics.prototype.methodTable["IFrame"]=function(msg) {
         /*UNIMPL*/
     };
@@ -980,11 +1426,24 @@ Kata.require([
         //destroyX(msg,"IFrame");
     };
     GLGEGraphics.prototype.methodTable["CaptureCanvas"]=function(msg) {
-        var msg = {
-            msg: "canvasCapture",
-            img: this.mClientElement.toDataURL()
-        };
-        this._inputCb(msg);
+      if (msg.still) {
+          this.mDoCaptureCanvas+=1;
+      } else{          
+          try {
+              var msg = {
+                  msg: "canvasCapture",
+                  img: this.mClientElement.toDataURL()
+              };
+          }
+          catch (e) {
+              var msg = {
+                  msg: "canvasCapture",
+                  img: ""
+              };
+          }
+          this._inputCb(msg);
+      }
+
     };
 
     // Register as a GraphicsSimulation if possible.
