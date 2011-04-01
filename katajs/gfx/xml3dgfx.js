@@ -387,6 +387,9 @@ Kata.require([
 						// parse received mesh
 						var doc = new DOMParser().parseFromString(data, "text/xml");
 						
+						// notify gfx that we have loaded the mesh
+						thus.gfx.inputCallback({msg: "loaded", id: thus.id});
+						
 						// append new object to the scene
 						if (doc && doc.documentElement.nodeName.toLowerCase() == "xml3d")
 						{
