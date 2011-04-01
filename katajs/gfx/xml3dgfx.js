@@ -74,8 +74,6 @@ Kata.require([
         $(this.root).bind("mousedown", function (e){thus.mouseDown(e)});
         $(this.root).bind("mouseup",   function (e){thus.mouseUp(e)});
         $(this.root).bind("mousemove", function (e){thus.mouseMove(e)});
-        //$(this.root).bind("scroll",    function (e){thus.scrollWheel(e)});
-        
         this.root.addEventListener('mousewheel', function(e) { thus.scrollWheel(e); }, true); // Chrome
         this.root.addEventListener('DOMMouseScroll', function(e) { thus.scrollWheel(e); }, true); // Firefox
         
@@ -211,22 +209,22 @@ Kata.require([
         }
     }
     
-    XML3DGraphics.prototype.methodTable["disabled"] = function(msg) {
+    XML3DGraphics.prototype.methodTable["disable"] = function(msg) {
     	if (msg.type == "mousemove")
-    		mouseMoveMessageEnabled.mouseMoveMessageEnabled = false;
+    		this.mouseMoveMessageEnabled = false;
     	else if (msg.type == "pick")
-    		mouseMoveMessageEnabled.pickMessageEnabled = false;
+    		this.pickMessageEnabled = false;
     	else if (msg.type == "drag")
-    		mouseMoveMessageEnabled.dragMessageEnabled = false;
+    		this.dragMessageEnabled = false;
     };
     
-    XML3DGraphics.prototype.methodTable["enabled"] = function(msg) {
+    XML3DGraphics.prototype.methodTable["enable"] = function(msg) {
     	if (msg.type == "mousemove")
-    		mouseMoveMessageEnabled.mouseMoveMessageEnabled = true;
+    		this.mouseMoveMessageEnabled = true;
     	else if (msg.type == "pick")
-    		mouseMoveMessageEnabled.pickMessageEnabled = true;
+    		this.pickMessageEnabled = true;
     	else if (msg.type == "drag")
-    		mouseMoveMessageEnabled.dragMessageEnabled = true;
+    		this.dragMessageEnabled = true;
     };
     
     XML3DGraphics.prototype.methodTable["unknown"] = function(msg) {
@@ -250,28 +248,61 @@ Kata.require([
     };
     
     XML3DGraphics.prototype.initMouseEventMessage = function(jQueryEvent, eventName) {
-        var browserEvent = jQueryEvent.originalEvent;
+        var e = jQueryEvent.originalEvent;
     	
-    	return {
-        	msg: eventName,
-        	x: browserEvent.clientX - $(this.root).offset().left,
-        	y: browserEvent.clientY - $(this.root).offset().top,
-        	clientX: browserEvent.clientX,
-        	clientY: browserEvent.clientY,
-        	shiftKey: browserEvent.shiftKey,
-        	ctrlKey: browserEvent.ctrlKey,
-        	altKey: browserEvent.altKey,
-        	event: browserEvent,
-        	// TODO: what to fill in here?
-        	spaceid: null,
-        	camerapos: null,
-        	dir: null
+    	function cloneEvent(e) {
+            var ret = {};
+            for (var key in e) {
+                if (key != "charCode" && key.toUpperCase() != key) {
+                    if (typeof(e[key]) == "number" || typeof(e[key]) == "string") {
+                        ret[key] = e[key];
+                    }
+                }
+            }
+            return ret;
+        }
+    	
+        var msg = {
+            msg: eventName ? eventName : e.type,
+            event: cloneEvent(e),
+            x: e.clientX, // corrected below
+            y: e.clientY, // corrected below
+            clientX: e.clientX, 
+            clientY: e.clientX, 
+            spaceid: this.spaceID,
+            camerapos: null, // computed below
+            dir: null, // computed below
+            shiftKey: e.shiftKey,
+            ctrlKey: e.ctrlKey,
+            altKey: e.altKey
         };
+        
+        // correct position relative to canvas
+        var elem = this.root;
+        while (elem != null) {
+            msg.x += elem.scrollLeft || 0;
+            msg.y += elem.scrollTop || 0;
+            msg.x -= elem.offsetLeft || 0;
+            msg.y -= elem.offsetTop || 0;
+            if (elem == document.body && !elem.offsetParent) {
+                elem = document.documentElement;
+            } else {
+                elem = elem.offsetParent;
+            }
+        }
+        
+        // compute camera configuration for pixel under cursor
+        // FIXME: generateRay returns {origin:[0,0,0],direction:[0,0,-1]} for every pixel
+        var ray = this.root.generateRay(msg.x, msg.y);
+        msg.camerapos = [ray.origin.x, ray.origin.y, ray.origin.z];
+        msg.dir = [ray.direction.x, ray.direction.y, ray.direction.z];
+        
+        return msg;
     };
     
     XML3DGraphics.prototype.mouseDown = function(e) {
     	var msg = this.initMouseEventMessage(e, "mousedown");
-    	msg.button = e.button;
+        msg.button = e.button;
         this.inputCallback(msg);
         
         this.lastMouseDownPosition = {x: e.clientX, y: e.clientY};
@@ -279,16 +310,23 @@ Kata.require([
         if (this.pickMessageEnabled)
         {
         	msg.msg = "pick";
-        	msg.id = null; // TODO: fill in object id (search parent group that holds an object and if reached root return null)
         	msg.pos = [e.originalEvent.position.x, e.originalEvent.position.y, e.originalEvent.position.z];
         	msg.normal = [e.originalEvent.normal.x, e.originalEvent.normal.y, e.originalEvent.normal.z];
+        	
+        	// look for object id
+        	var elem = e.target;
+        	while (!elem.hasAttribute("sirikataObject") && elem.tagName != "xml3d")
+        	    elem = elem.parentNode;
+        	if (elem.tagName != "xml3d")
+        	    msg.id = elem.id;
+        	else
+        	    msg.id = null;
         }
     };
     
     XML3DGraphics.prototype.mouseUp = function(e) {
     	var msg = this.initMouseEventMessage(e, "mouseup");
-    	msg.button = e.which;
-        this.inputCallback(msg);
+        msg.button = e.button;
         
         if (this.lastMouseDownPosition)
         {
@@ -440,8 +478,6 @@ Kata.require([
 								this.transform.translation = new XML3DVec3(location.pos[0], location.pos[1], location.pos[2]);
 								this.transform.rotation.setQuaternion(new XML3DVec3(location.orient[0], location.orient[1], location.orient[2]), location.orient[3]);
 								
-								this.gfx.root.update();
-								
 								return !interpolate;
 							}
 							
@@ -451,6 +487,7 @@ Kata.require([
 							// create group
 							thus.group = document.createElementNS(org.xml3d.xml3dNS, "group");
 							thus.group.setAttribute("id", thus.id);
+							thus.group.setAttribute("sirikataObject", "true");
 							thus.group.transform = "#" + thus.transformID;
 							// TODO: set shader when support will be added to JavascriptGraphicsAPI
 							thus.gfx.root.appendChild(thus.group);
@@ -535,8 +572,6 @@ Kata.require([
 				this.view.position = new XML3DVec3(location.pos[0], location.pos[1], location.pos[2]);
 				this.view.orientation.setQuaternion(new XML3DVec3(location.orient[0], location.orient[1], location.orient[2]), location.orient[3]);
 				
-				this.gfx.root.update();
-				
 				return !interpolate;
 			}
 			
@@ -559,7 +594,10 @@ Kata.require([
 		else if (msg.target != 0)
 			console.error("Camera can only be attached to the framebuffer. Stereo is not supported.");
 		else
+		{
 			this.gfx.root.activeView = "#" + this.viewID;
+			this.gfx.spaceID = msg.spaceid;
+		}
 	}
 	
 	// move object to a new location (derived from message)
