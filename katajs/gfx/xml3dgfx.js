@@ -178,6 +178,13 @@ Kata.require([
         else
             this.objects[msg.id].animate(msg.animation);
     }
+
+    XML3DGraphics.prototype.methodTable["animateadv"] = function(msg) {
+        if (this.objects[msg.id] === undefined)
+            console.error("Cannot animate an object " + msg.id + ". It does not exist.");
+        else
+            this.objects[msg.id].animate(msg.animation, msg.speed);
+    }
     
     XML3DGraphics.prototype.methodTable["camera"] = function(msg) {
         console.log("camera " + msg.id);
@@ -500,7 +507,7 @@ Kata.require([
                             
                             // configure animations for the new mesh
                             var animationsNode = thus.group.getElementsByTagName("animations")[0];
-			    if (animationsNode) {
+                            if (animationsNode) {
                                 // create an array with animations
                                 thus.animations = {};
                                 
@@ -512,11 +519,11 @@ Kata.require([
                                         var name = animElem.getAttribute("name");
                                         
                                         thus.animations[name] = {
-					    name: name,
+                                            name: name,
                                             data: animElem.getAttribute("data"),
-					    length: animElem.getAttribute("length"),
-					    repeat: animElem.hasAttribute("repeat") ? animElem.getAttribute("repeat") != "no" : true,
-					    start: animElem.hasAttribute("start") ? animElem.getAttribute("start") : 0
+                                            length: animElem.getAttribute("length"),
+                                            repeat: animElem.hasAttribute("repeat") ? animElem.getAttribute("repeat") != "no" : true,
+                                            start: animElem.hasAttribute("start") ? animElem.getAttribute("start") : 0
                                         };
                                     }
                                 }
@@ -611,46 +618,49 @@ Kata.require([
     }
     
     // start named animation of an object
-    XML3DVWObject.prototype.animate = function(animationName) {
+    XML3DVWObject.prototype.animate = function(animationName, speed) {
         if (this.objType != "mesh") {
             console.error("Cannot animate an object " + this.id + ". It is not a mesh.");
             return;
         }
 
-	// stop previous animation
+        if (!speed)
+            speed = 1.0;
+
+        // stop previous animation
         if (this.runningAnimation != undefined) {
-	    // TODO: morph animations smoothly
-	    window.clearInterval(this.animations[this.runningAnimation].handle);
-	    delete this.runningAnimation;
-	}
+            // TODO: morph animations smoothly
+            window.clearInterval(this.animations[this.runningAnimation].handle);
+            delete this.runningAnimation;
+        }
         
         // save animation if we haven't loaded mesh yet
         if (this.animations == undefined) {
             this.savedAnimation = animationName;
-	} else if (animationName == undefined) {
-	    ; // this is intended to stop animation only
+        } else if (animationName == undefined) {
+            ; // this is intended to stop animation only
         } else if (this.animations[animationName] == undefined) {
             console.error("Cannot animate an object " + this.id + ". Animation '" + animationName + "' does not exist.");
         } else {
             var anim = this.animations[animationName];
-	    var thus = this;
-	    this.runningAnimation = animationName;
-	    document.getElementById("dataAnimController" + this.id).src = anim.data;
-	    document.getElementById("strength" + thus.id).childNodes[0].nodeValue = anim.start;
-	    anim.progress = anim.start;
-	    anim.handle = window.setInterval(
-		function() {
-		    anim.progress++;
-		    if (anim.progress >= anim.length)
-		    {
-			anim.progress = anim.start;
-			if (!anim.repeat)
-			    thus.animate(); // stop animation
-		    }
-		    document.getElementById("strength" + thus.id).childNodes[0].nodeValue = anim.progress;
-		},
-		50
-	    );
+            var thus = this;
+            this.runningAnimation = animationName;
+            document.getElementById("dataAnimController" + this.id).src = anim.data;
+            document.getElementById("strength" + thus.id).childNodes[0].nodeValue = anim.start;
+            anim.progress = anim.start;
+            anim.handle = window.setInterval(
+                function() {
+                    anim.progress++;
+                    if (anim.progress >= anim.length)
+                    {
+                        anim.progress = anim.start;
+                        if (!anim.repeat)
+                            thus.animate(); // stop animation
+                    }
+                    document.getElementById("strength" + thus.id).childNodes[0].nodeValue = anim.progress;
+                },
+                50 / speed
+            );
         }
     }
     
