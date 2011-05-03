@@ -499,8 +499,8 @@ Kata.require([
                                 thus.group.appendChild(document.importNode(n, true));
                             
                             // configure animations for the new mesh
-                            var animationsNode = document.getElementById("animations" + thus.id);
-                            if (animationsNode) {
+                            var animationsNode = thus.group.getElementsByTagName("animations")[0];
+			    if (animationsNode) {
                                 // create an array with animations
                                 thus.animations = {};
                                 
@@ -508,32 +508,18 @@ Kata.require([
                                 for (var childIndex in animationsNode.childNodes) {
                                     var animElem = animationsNode.childNodes[childIndex];
                                     
-                                    if (animElem.nodeType == Node.ELEMENT_NODE && animElem.nodeName.toLowerCase() == "group" && animElem.hasAttribute("id")) {
-                                        var elementId = animElem.getAttribute("id");
-                                        var animName = elementId.substring(0, elementId.length - thus.id.length);
+                                    if (animElem.nodeType == Node.ELEMENT_NODE && animElem.nodeName.toLowerCase() == "animation" && animElem.hasAttribute("name") && animElem.hasAttribute("length") && animElem.hasAttribute("data")) {
+                                        var name = animElem.getAttribute("name");
                                         
-                                        thus.animations[animName] = [];
-                                        
-                                        for (var mapIndex in animElem.childNodes) {
-                                            var mapElem = animElem.childNodes[mapIndex];
-                                            
-                                            if (mapElem.nodeType == Node.ELEMENT_NODE && mapElem.nodeName.toLowerCase() == "map" && mapElem.hasAttribute("source") && 
-                                                    mapElem.hasAttribute("target") && mapElem.hasAttribute("field")) {
-                                                thus.animations[animName].push({
-                                                    "source": mapElem.getAttribute("source"),
-                                                    "target": mapElem.getAttribute("target"),
-                                                    "field": mapElem.getAttribute("field")
-                                                });
-                                            }
-                                        }
+                                        thus.animations[name] = {
+					    name: name,
+                                            data: animElem.getAttribute("data"),
+					    length: animElem.getAttribute("length"),
+					    repeat: animElem.hasAttribute("repeat") ? animElem.getAttribute("repeat") != "no" : true,
+					    start: animElem.hasAttribute("start") ? animElem.getAttribute("start") : 0
+                                        };
                                     }
                                 }
-                                
-                                // update list of interpolators for XML3D animation manager
-                                org.xml3d.animation.animationManager.updateInterpolators();
-                                
-                                // create storage for running animations
-                                thus.runningAnimations = [];
                                 
                                 // run last saved animation
                                 if (thus.savedAnimation != undefined) {
@@ -630,36 +616,49 @@ Kata.require([
             console.error("Cannot animate an object " + this.id + ". It is not a mesh.");
             return;
         }
+
+	// stop previous animation
+        if (this.runningAnimation != undefined) {
+	    // TODO: morph animations smoothly
+	    window.clearInterval(this.animations[this.runningAnimation].handle);
+	    delete this.runningAnimation;
+	}
         
         // save animation if we haven't loaded mesh yet
         if (this.animations == undefined) {
             this.savedAnimation = animationName;
+	} else if (animationName == undefined) {
+	    ; // this is intended to stop animation only
         } else if (this.animations[animationName] == undefined) {
             console.error("Cannot animate an object " + this.id + ". Animation '" + animationName + "' does not exist.");
-            return;
         } else {
-            // stop previous animation
-            if (this.runningAnimations != undefined) {
-                for (var i in this.runningAnimations)
-                    org.xml3d.stopAnimation(this.runningAnimations[i]);
-                
-                // reinitalize array to free memory
-                this.runningAnimations = [];
-            }
-            
-            for (var i in this.animations[animationName]) {
-                var animRec = this.animations[animationName][i];
-                this.runningAnimations.push(org.xml3d.startAnimation(animRec.source, animRec.target, animRec.field, 1000, true));
-            }    
+            var anim = this.animations[animationName];
+	    var thus = this;
+	    this.runningAnimation = animationName;
+	    document.getElementById("dataAnimController" + this.id).src = anim.data;
+	    document.getElementById("strength" + thus.id).childNodes[0].nodeValue = anim.start;
+	    anim.progress = anim.start;
+	    anim.handle = window.setInterval(
+		function() {
+		    anim.progress++;
+		    if (anim.progress >= anim.length)
+		    {
+			anim.progress = anim.start;
+			if (!anim.repeat)
+			    thus.animate(); // stop animation
+		    }
+		    document.getElementById("strength" + thus.id).childNodes[0].nodeValue = anim.progress;
+		},
+		50
+	    );
         }
     }
     
     XML3DVWObject.prototype.destroy = function() {
         if (this.objType == "mesh") {
             // stop animations if they are running
-            if (this.runningAnimations != undefined)
-                for (var i in this.runningAnimations)
-                    org.xml3d.stopAnimation(this.runningAnimations[i]);
+            if (this.runningAnimation != undefined)
+                window.clearInterval(this.animationIntervalHandle);
             
             // cancel last update if scheduled
             if (this.lastScheduledUpdateIndex != undefined)
@@ -688,7 +687,7 @@ Kata.require([
             "mesh": ["src"],
             "light": ["shader"],
             "xml3d": ["activeView"],
-            "map": ["source", "target"],
+            "animation": ["data"],
             "data": ["src"]
         };
         
@@ -727,7 +726,9 @@ Kata.require([
         
         // special handling for "script" attribute, since it may contain URN reference
         // which must remain unchanged
-        if (element.nodeName.toLowerCase() == "lightshader" || element.nodeName.toLowerCase() == "shader")
+        if (element.nodeName.toLowerCase() == "lightshader" || 
+            element.nodeName.toLowerCase() == "shader" ||
+            element.nodeName.toLowerCase() == "data")
             if (element.hasAttribute("script") && element.getAttribute("script").substring(0, 3) != "urn")
                 fixAttrs(element, suffix, ["script"]);
         
