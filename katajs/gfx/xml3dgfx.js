@@ -55,8 +55,8 @@ Kata.require([
             this.root = document.importNode(xml3dDoc.documentElement, true);
         }
         
-        this.root.style.width = "100%";
-        this.root.style.height = "100%";
+        this.root.setAttribute("width", "100%");
+        this.root.setAttribute("height", "100%");
         parentElement.appendChild(this.root);
         
         // find or create defs element
@@ -65,6 +65,20 @@ Kata.require([
         {
             this.defs = document.createElementNS(org.xml3d.xml3dNS, "defs");
             this.root.insertChild(this.defs,  this.root.firstChild);
+        }
+
+        // enable WebGL renderer if we don't have native implementation
+        if (this.root.style == undefined)
+        {
+            if (org.xml3d.webgl.supported())
+            {
+                org.xml3d.data.configure([this.root]);
+                org.xml3d.webgl.configure([this.root]);
+            }
+            else
+            {
+                alert("Error! Please use a browser that supports WebGL or native XML3D!");
+            }
         }
         
         // bind message handlers
@@ -185,6 +199,13 @@ Kata.require([
         else
             this.objects[msg.id].animate(msg.animation, msg.speed);
     }
+
+    XML3DGraphics.prototype.methodTable["createanim"] = function(msg) {
+        if (this.objects[msg.id] === undefined)
+            console.error("Cannot create an animation for the object " + msg.id + ". It does not exist.");
+        else
+            this.objects[msg.id].createAnimation(msg.animation, msg.data, msg.offset, msg.len, msg.repeat);
+    }
     
     XML3DGraphics.prototype.methodTable["camera"] = function(msg) {
         console.log("camera " + msg.id);
@@ -302,9 +323,11 @@ Kata.require([
         
         // compute camera configuration for pixel under cursor
         // FIXME: generateRay returns {origin:[0,0,0],direction:[0,0,-1]} for every pixel
-        var ray = this.root.generateRay(msg.x, msg.y);
-        msg.camerapos = [ray.origin.x, ray.origin.y, ray.origin.z];
-        msg.dir = [ray.direction.x, ray.direction.y, ray.direction.z];
+        //var ray = this.root.generateRay(msg.x, msg.y);
+        //msg.camerapos = [ray.origin.x, ray.origin.y, ray.origin.z];
+        //msg.dir = [ray.direction.x, ray.direction.y, ray.direction.z];
+        msg.camerapos = [0, 0, 0];
+        msg.dir = [0,0,-1];
         
         return msg;
     };
@@ -617,6 +640,47 @@ Kata.require([
         }
     }
     
+    XML3DVWObject.prototype.createAnimation = function(animName, data, offset, len, repeat)
+    {
+        if (animName == undefined || data == undefined)
+        {
+            console.error("Cannot create an animation without name or data");
+            return;
+        }
+
+        // TODO: support external data passed as a HTML string
+
+        if (len == undefined)
+        {
+            len = 0;
+            var animNode = document.getElementById(data + this.id);
+            for (var i = 0; i < animNode.childNodes.length; i++)
+            {
+                var child = animNode.childNodes[i];
+                if (child.nodeType == Node.ELEMENT_NODE && 
+                    child.nodeName.toLowerCase() == "float4x4" &&
+                    child.getAttribute("name").substring(0, 9) == "transform" &&
+                    child.getAttribute("name").length > 9)
+                {
+                    len++;
+                }
+            }
+        }
+
+        if (this.runningAnimation == animName)
+            if (this.animations[this.runningAnimation].progress >= len)
+                this.animations[this.runningAnimation].progress = 0;
+
+        if (this.animations[animName] == undefined)
+            this.animations[animName] = {};
+
+        this.animations[animName].name = animName;
+        this.animations[animName].data = data + this.id;
+        this.animations[animName].length = len;
+        this.animations[animName].repeat = repeat;
+        this.animations[animName].start = offset;
+    }
+
     // start named animation of an object
     XML3DVWObject.prototype.animate = function(animationName, speed) {
         if (this.objType != "mesh") {
@@ -624,7 +688,7 @@ Kata.require([
             return;
         }
 
-        if (!speed)
+        if (speed == undefined)
             speed = 1.0;
 
         // stop previous animation
@@ -722,6 +786,10 @@ Kata.require([
         
         // function to rename reference CSS properties
         function fixCSSProps(element, suffix, attrs) {
+            // no support for style in WebGL
+            if (element.style == undefined)
+                return;
+
             for (var i in attrs)
             {
                 var value = element.style[attrs[i]];

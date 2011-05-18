@@ -227,18 +227,26 @@ Kata.require([
                  this.spaceid = this.space;
                  this.animation = animation;
              },
-             GFXAnimateAdv : function(space, observer, remotePresence, anim, /*data,*/ speed/*, offset, len, repeat*/) {
+             GFXAnimateAdv : function(space, observer, remotePresence, anim, speed) {
                  this.__type = Kata.ScriptProtocol.FromScript.Types.GraphicsMessage;
                  this.msg="AnimateAdv";
                  this.space = space+observer;
                  this.id = remotePresence.id();
                  this.spaceid = this.space;
                  this.animation = anim;
-                 //this.data = data;
                  this.speed = speed;
-                 //this.offset = offset;
-                 //this.len = len;
-                 //this.repeat = repeat;
+             },
+             GFXCreateAnim: function(space, observer, remotePresence, anim, data, offset, len, repeat) {
+                 this.__type = Kata.ScriptProtocol.FromScript.Types.GraphicsMessage;
+                 this.msg="CreateAnim";
+                 this.space = space+observer;
+                 this.id = remotePresence.id();
+                 this.spaceid = this.space;
+                 this.animation = anim;
+                 this.data = data;
+                 this.offset = offset;
+                 this.len = len;
+                 this.repeat = repeat;
              },
              GFXLabel : function(space, observer, remoteID, label, offset) {
                  this.__type = Kata.ScriptProtocol.FromScript.Types.GraphicsMessage;
