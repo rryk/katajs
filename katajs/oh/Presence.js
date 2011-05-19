@@ -230,6 +230,9 @@ Kata.require([
     Kata.Presence.prototype.predictedLocation = function() {
         return this._requestedLocation();
     };
+    Kata.Presence.prototype.predictedLocationAtTime = function(time) {
+        return Kata.LocationExtrapolate(this._requestedLocation(), time);
+    };
 
      Kata.Presence.prototype.setPosition = function(val){
          var now = Kata.now(this.mSpace);
