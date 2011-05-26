@@ -50,7 +50,7 @@ if (typeof(JSON) == "undefined") {JSON = {};}
 /** @define {string} Root directory of scripts. Inferred by any "script"
   tags pointing to Core.js. */
 if (!Kata.scriptRoot) { Kata.scriptRoot=""; }
-if (!Kata.queryString) { Kata.queryString=""; }
+if (!Kata.queryString) { Kata.queryString="?now=" + new Date().toISOString(); }
 (function() {
     var includedscripts = Kata.closureIncluded || {"katajs/core/Core.js":true};
     var loadedDeps = {"katajs/core/Core.js":true};
