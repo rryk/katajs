@@ -64,7 +64,7 @@ Kata.require([
         if (this.defs == undefined)
         {
             this.defs = document.createElementNS(org.xml3d.xml3dNS, "defs");
-            this.root.insertChild(this.defs,  this.root.firstChild);
+            this.root.insertBefore(this.defs, this.root.firstChild);
         }
         
         // bind message handlers
