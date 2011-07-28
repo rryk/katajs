@@ -90,14 +90,22 @@ Kata.require([
     };
     
     XML3DGraphics.initialize = function(scenefile, cb) {
-        $.ajax({
-            url: scenefile,
-            success: function(data) {
-               window.xml3dText = data;
-               cb();
-            },
-            dataType: "text"
-        });
+    	if (scenefile != null)
+    	{
+    		$.ajax({
+	            url: scenefile,
+	            success: function(data) {
+	                window.xml3dText = data;
+	                cb();
+	            },
+	            error: function() {
+	                cb();
+	            },
+	            dataType: "text"
+	        });
+    	} else {
+    		cb();
+    	}
     }
     
     // push an update into the queue and return it's index
