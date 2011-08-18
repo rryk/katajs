@@ -77,7 +77,8 @@ Kata.require([
             this.mListener(this, data);
         } else {
             for (var i = 0; i < this.mListener.length; i++) {
-                this.mListener[i](this, data);
+                var listener = this.mListener[i];
+                listener(this, data);
             }
         }
     };
