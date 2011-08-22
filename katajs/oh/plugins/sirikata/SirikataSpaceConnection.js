@@ -84,7 +84,7 @@ Kata.require([
         );
 
         this.mODPHandlers = {};
-
+        this.mIncompleteLocationData = {};
         // Time sync -- this needs to be updated to use the Sirikata sync protocol.
         this.mSync = new Kata.Sirikata.SyncClient(
             this,
@@ -190,7 +190,7 @@ Kata.require([
             else if (loc.scale.length == 3) {
                 // FIXME how to deal with differing values?
                 result.bounds = [0, 0, 0, loc.scale[0]];
-                console.log("IMPROPER BOUNDS LENGTH");
+                Kata.warn("IMPROPER BOUNDS LENGTH");
             }
             else if (loc.scale.length == 4) {
                 result.bounds = loc.scale;
@@ -204,7 +204,7 @@ Kata.require([
     };
 
 
-    Kata.SirikataSpaceConnection.prototype.connectObject = function(id, auth, loc, vis) {
+    Kata.SirikataSpaceConnection.prototype.connectObject = function(id, auth, loc, vis, query) {
         var objid = this._getObjectID(id);
 
         //Kata.warn("Connecting " + id + " == " + objid);
@@ -241,9 +241,11 @@ Kata.require([
             connect_msg.bounds = loc_parts.bounds;
         if (loc_parts.visual)
             connect_msg.mesh = loc_parts.visual;
-
-        // FIXME don't always register queries, allow specifying angle
-        connect_msg.query_angle = 0.00000000000000000000000001;
+        if (query>0.0&&query!=true&&query) {
+            connect_msg.query_angle = query;
+        }else if (query) {
+            connect_msg.query_angle = 0.00000000000000000000000001;
+        }
 
         var session_msg = new Sirikata.Protocol.Session.Container();
         session_msg.connect = connect_msg;
@@ -389,6 +391,7 @@ Kata.require([
         );
     };
 
+
     /* Handle session messages from the space server. */
     Kata.SirikataSpaceConnection.prototype._handleSessionMessage = function(odp_msg) {
         var session_msg = new Sirikata.Protocol.Session.Container();
@@ -401,7 +404,7 @@ Kata.require([
 
             if (conn_response.response == Sirikata.Protocol.Session.ConnectResponse.Response.Success) {
                 var id = this._getLocalID(objid);
-                //Kata.warn("Successfully connected " + id);
+                Kata.log("Successfully connected " + id);
 
                 // Send ack
                 var connect_ack_msg = new Sirikata.Protocol.Session.ConnectAck();
@@ -470,7 +473,7 @@ Kata.require([
             return;
         }
 
-        //Kata.warn("Successful SST space connection for " + objid + ". Setting up loc and prox listeners.");
+        Kata.log("Successful SST space connection for " + objid + ". Setting up loc and prox listeners.");
         // Store the stream for later use
         this.mConnectedObjects[objid].spaceStream = stream;
 
@@ -510,10 +513,51 @@ Kata.require([
             update_request.orientation = loc_parts.orient;
         if (loc_parts.bounds)
             update_request.bounds = loc_parts.bounds;
-        if (loc_parts.visual)
-            update_request.mesh = loc_parts.visual;
+        if (typeof(visual)=="string")
+            update_request.mesh = visual;
 
         var container = new Sirikata.Protocol.Loc.Container();
+        container.update_request = update_request;
+
+        var spacestream = this.mConnectedObjects[objid].spaceStream;
+        if (!spacestream) {
+            Kata.warn("Tried to send loc update before stream to server was ready.");
+            return;
+        }
+
+        spacestream.datagram(
+            this._serializeMessage(container).getArray(),
+            this.Ports.Location, this.Ports.Location
+        );
+    };
+
+    Kata.SirikataSpaceConnection.prototype.requestQueryRemoval = function(objid) {
+        this.requestQueryUpdate(objid,4*Math.PI);
+    };
+
+    Kata.SirikataSpaceConnection.prototype.requestQueryUpdate = function(objid, newAngle) {
+        // Generate and send an update to PINTO
+        var update_request = new Sirikata.Protocol.Prox.QueryRequest();
+        update_request.query_angle = newAngle;
+
+        var spacestream = this.mConnectedObjects[objid].spaceStream;
+        if (!spacestream) {
+            Kata.warn("Tried to send prox update before stream to server was ready.");
+            return;
+        }
+
+        spacestream.datagram(
+            this._serializeMessage(update_request).getArray(),
+            this.Ports.Proximity, this.Ports.Proximity
+        );
+    };
+
+    Kata.SirikataSpaceConnection.prototype.setPhysics = function(objid, data) {
+        // Generate and send an update to Loc
+        var update_request = new Sirikata.Protocol.Loc.LocationUpdateRequest;
+        update_request.physics = data;
+
+        var container = new Sirikata.Protocol.Loc.Container;
         container.update_request = update_request;
 
         var spacestream = this.mConnectedObjects[objid].spaceStream;
@@ -544,8 +588,18 @@ Kata.require([
         // Currently we just assume each update is a standalone Frame
 
         // Parse the surrounding frame
+        if (this.mIncompleteLocationData[stream.mUSID]) {
+            data = this.mIncompleteLocationData[stream.mUSID].concat(data);
+        }
         var framed_msg = new Sirikata.Protocol.Frame();
-        framed_msg.ParseFromStream(new PROTO.ByteArrayStream(data));
+        var str = new PROTO.ByteArrayStream(data);
+        if (!framed_msg.ParseFromStream(str)) {
+            this.mIncompleteLocationData[stream.mUSID] = data;
+            return;
+        }
+        if (this.mIncompleteLocationData[stream.mUSID]) {
+            delete this.mIncompleteLocationData[stream.mUSID];
+        }
 
         // Parse the internal loc update
         var loc_update_msg = new Sirikata.Protocol.Loc.BulkLocationUpdate();
@@ -562,9 +616,7 @@ Kata.require([
             // received.  The visual parameter is handled seperately,
             // so we just fill it in before any calls to
             // presenceLocUpdate.
-            var visual;
-            if (update.mesh)
-                visual = update.mesh;
+            var visual = update.mesh;
 
             if (update.location) {
                 var loc = {};

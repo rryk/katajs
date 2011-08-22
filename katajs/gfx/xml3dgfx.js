@@ -90,14 +90,22 @@ Kata.require([
     };
     
     XML3DGraphics.initialize = function(scenefile, cb) {
-        $.ajax({
-            url: scenefile,
-            success: function(data) {
-               window.xml3dText = data;
-               cb();
-            },
-            dataType: "text"
-        });
+    	if (scenefile != null)
+    	{
+    		$.ajax({
+	            url: scenefile,
+	            success: function(data) {
+	                window.xml3dText = data;
+	                cb();
+	            },
+	            error: function() {
+	                cb();
+	            },
+	            dataType: "text"
+	        });
+    	} else {
+    		cb();
+    	}
     }
     
     // push an update into the queue and return it's index
@@ -560,12 +568,14 @@ Kata.require([
             this.view = document.createElementNS(org.xml3d.xml3dNS, "view");
             this.view.setAttribute("id", this.viewID);
             
+            var thus = this;
+            
             // function to update location of the camera
             this.updateLocation = function(interpolate) {
-                var location = Kata.LocationExtrapolate(this.curLocation, new Date().getTime());
+                var location = Kata.LocationExtrapolate(thus.curLocation, new Date().getTime());
                 
-                this.view.position = new XML3DVec3(location.pos[0], location.pos[1], location.pos[2]);
-                this.view.orientation.setQuaternion(new XML3DVec3(location.orient[0], location.orient[1], location.orient[2]), location.orient[3]);
+                thus.view.position = new XML3DVec3(location.pos[0], location.pos[1], location.pos[2]);
+                thus.view.orientation.setQuaternion(new XML3DVec3(location.orient[0], location.orient[1], location.orient[2]), location.orient[3]);
                 
                 return !interpolate;
             }

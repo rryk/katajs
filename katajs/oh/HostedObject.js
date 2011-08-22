@@ -55,7 +55,10 @@ Kata.require([
         scriptHandlers[scriptTypes.SendODPMessage] = Kata.bind(this._handleSendODPMessage, this);
         scriptHandlers[scriptTypes.Query] = Kata.bind(this._handleQuery, this);
         scriptHandlers[scriptTypes.Location] = Kata.bind(this._handleLocUpdateRequest, this);
+        scriptHandlers[scriptTypes.QueryUpdate] = Kata.bind(this._handleQueryUpdate, this);
+        scriptHandlers[scriptTypes.QueryRemoval] = Kata.bind(this._handleQueryRemoval, this);
         scriptHandlers[scriptTypes.Subscription] = Kata.bind(this._handleSubscriptionRequest, this);
+        scriptHandlers[scriptTypes.Physics] = Kata.bind(this._handlePhysicsRequest, this);
 
         scriptHandlers[scriptTypes.CreateObject] = Kata.bind(this._handleCreateObject, this);
         scriptHandlers[scriptTypes.GraphicsMessage] = Kata.bind(this._handleGraphicsMessage, this);
@@ -140,6 +143,16 @@ Kata.require([
 
      Kata.HostedObject.prototype._handleQuery = function (channel, request) {
          this.mObjectHost.registerProxQuery(request.space, request.id, request.sa);
+     };
+     Kata.HostedObject.prototype._handleQueryUpdate = function (channel, request) {
+         this.mObjectHost.requestQueryUpdate(request.space, request.id, request.sa);
+     };
+     Kata.HostedObject.prototype._handleQueryRemoval = function (channel, request) {
+         this.mObjectHost.requestQueryRemoval(request.space, request.id);
+     };
+
+     Kata.HostedObject.prototype._handlePhysicsRequest = function(channel, request) {
+         this.mObjectHost.setPhysics(request.space, request.id, request.data);
      };
 
      Kata.HostedObject.prototype.proxEvent = function(space, observed, entered, properties) {

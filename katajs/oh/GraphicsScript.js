@@ -82,6 +82,27 @@ Kata.require([
          var msg = new Kata.ScriptProtocol.FromScript.GFXQueryMeshAspectRatio(presence.space(),presence.id(),remotePresence);
          this._sendHostedObjectMessage(msg);
      };
+
+     Kata.GraphicsScript.prototype.queryMeshAspectRatio = function(presence, remotePresence) {
+         var msg = new Kata.ScriptProtocol.FromScript.GFXQueryMeshAspectRatio(presence.space(),presence.id(),remotePresence);
+         this._sendHostedObjectMessage(msg);
+     };
+
+     Kata.GraphicsScript.prototype.projectPoint = function(presence,point,data) {
+         var msg = new Kata.ScriptProtocol.FromScript.GFXProjectPoint(presence.space(),presence.id(),point,data);
+         this._sendHostedObjectMessage(msg);
+     };
+
+     /** Request a presence in the given space.
+      *  @param {Kata.SpaceID} space ID of the space to connect to
+      *  @param {string} auth authentication information to pass to the space
+      *  @param {function(Kata.Presence)} cb callback to invoke upon completion
+      */
+     Kata.GraphicsScript.prototype.connect = function(args, auth, cb) {
+         // query for all objects, since we need to display them.
+         SUPER.connect.call(this, args, auth, cb, true);
+     };
+
      /**
       * Enables graphics on the main canvas viewport. 
       * @param {Kata.Presence} presence The presence that graphics should be enabled for
@@ -112,13 +133,9 @@ Kata.require([
          Kata.LocationCopyUnifyTime(msg,remotePresence.mLocation);
          this._sendHostedObjectMessage(msg);
          //in our space, add Mesh to the new graphics subsystem;
-		 if (!noMesh) {
-		 	var messages = Kata.ScriptProtocol.FromScript.generateGFXUpdateVisualMessages(presence.space(), presence.id(), remotePresence);
-		 	var len = messages.length;
-		 	for (var i = 0; i < len; ++i) {
-		 		this._sendHostedObjectMessage(messages[i]);
-		 	}
-		 }
+         if (noMesh) {
+             remotePresence.noMesh = true;
+         }
          remotePresence.inGFXSceneGraph = true;
          // Give everything a chance to run an initial update pass
          this.updateGFX(remotePresence);
@@ -345,6 +362,16 @@ Kata.require([
              { loc : remotePresence.predictedLocation() }
          );
          this._sendHostedObjectMessage(msg);
+         if (remotePresence.lastGFXVisual != remotePresence.visual()) {
+             if (!remotePresence.noMesh) {
+                 var messages = Kata.ScriptProtocol.FromScript.generateGFXUpdateVisualMessages(presence.space(), presence.id(), remotePresence, remotePresence.lastGFXVisual);
+                 var len = messages.length;
+                 for (var i = 0; i < len; ++i) {
+                     this._sendHostedObjectMessage(messages[i]);
+                 }
+             }
+             remotePresence.lastGFXVisual = remotePresence.visual();
+		 }
          if (this.mUpdateHook)
              this.mUpdateHook(presence, remotePresence);
      };
@@ -375,13 +402,14 @@ Kata.require([
         this._sendHostedObjectMessage(msg);
     };
 
-    Kata.GraphicsScript.prototype.setLabel = function(presence, remoteID, label, offset) {
+    Kata.GraphicsScript.prototype.setLabel = function(presence, remoteID, label, offset, color) {
         var msg = new Kata.ScriptProtocol.FromScript.GFXLabel(
             presence.space(),
             presence.id(),
             remoteID.object(),
             label,
-            offset
+            offset,
+            color
         );
         this._sendHostedObjectMessage(msg);
     };

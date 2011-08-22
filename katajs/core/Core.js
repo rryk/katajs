@@ -316,7 +316,7 @@ if (!Kata.queryString) { Kata.queryString=""; }
         return datastr;
     };
 
-    if (console.log && debug_console) {
+    if (console.log && console.log.apply && debug_console) {
         /** Logs msg to the console, in addition to some json object.
          * @param {...(object|string)} var_args  Some optional JSON data to log.
          */
@@ -472,7 +472,7 @@ if (!Kata.queryString) { Kata.queryString=""; }
      *         with the rest of the information.
      */
     Kata.notImplemented = function(note) {
-        Kata.warn(note, "notImplemented");
+        Kata.log(note, "notImplemented");
     };
 
     var nextDebugId = 1001;

@@ -96,7 +96,7 @@ Kata.require([
          this.mObjects[ho.getID()] = ho;
 
          // And try to connect
-         space_conn.connectObject(ho.getID(), auth, req, req.visual);
+         space_conn.connectObject(ho.getID(), auth, req, req.visual, req.query);
      };
 
      /** Callback from SpaceConnection which allows us to alias an ID
@@ -195,6 +195,26 @@ Kata.require([
          var space_conn = this.mSpaceConnections[space];
          if (space_conn !== undefined)
              space_conn.locUpdateRequest(id, loc, visual);
+     };
+
+     /** Send an update request to the space. */
+     Kata.SessionManager.prototype.requestQueryRemoval = function(space, id) {
+         var space_conn = this.mSpaceConnections[space];
+         if (space_conn !== undefined)
+             space_conn.requestQueryRemoval(id);
+     };
+
+     /** Send an update request to the space. */
+     Kata.SessionManager.prototype.requestQueryUpdate = function(space, id, newSolidAngle) {
+         var space_conn = this.mSpaceConnections[space];
+         if (space_conn !== undefined)
+             space_conn.requestQueryUpdate(id, newSolidAngle);
+     };
+
+     Kata.SessionManager.prototype.setPhysics = function(space, id, data) {
+         var space_conn = this.mSpaceConnections[space];
+         if (space_conn !== undefined)
+             space_conn.setPhysics(id, data);
      };
 
      /** Should be invoked by SpaceConnection classes when a location
