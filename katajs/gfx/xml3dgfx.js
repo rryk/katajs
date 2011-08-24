@@ -346,6 +346,7 @@ Kata.require([
     XML3DGraphics.prototype.mouseUp = function(e) {
         var msg = this.initMouseEventMessage(e, "mouseup");
         msg.button = e.button;
+        this.inputCallback(msg);
 
         if (this.lastMouseDownPosition)
         {
@@ -382,8 +383,8 @@ Kata.require([
         if (this.dragMessageEnabled && this.lastMouseDownPosition)
         {
             var msg = this.initMouseEventMessage(e, "drag");
-            msg.dx = Math.abs(this.lastMouseDownPosition.x - msg.clientX);
-            msg.dy = Math.abs(this.lastMouseDownPosition.y - msg.clientY);
+            msg.dx = msg.clientX - this.lastMouseDownPosition.x;
+            msg.dy = msg.clientY - this.lastMouseDownPosition.y;
             this.inputCallback(msg);
         }
     };
