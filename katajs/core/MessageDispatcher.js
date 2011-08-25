@@ -63,7 +63,8 @@ Kata.require([
          var mtype = msg.__type;
          if (!this._handlers[mtype])
              return false;
-         this._handlers[mtype](channel,msg);
+         var mhandler = this._handlers[mtype];
+         mhandler(channel,msg);
          return true;
      };
 

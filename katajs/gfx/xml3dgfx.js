@@ -36,15 +36,15 @@ Kata.require([
     'katajs/oh/GraphicsSimulation.js',
     ['externals/xml3d/xml3d.js', 'externals/xml3d/xml3d_animation.js']
 ], function() {
-    
+
     /* XML3DGraphics class */
-    
+
     var XML3DGraphics = function(callbackFunction, parentElement) {
         this.parentElement = parentElement;
-        
+
         // create dictionary of objects
         this.objects = {};
-        
+
         // load base world and set up scene root
         if (window.xml3dText == undefined)
             this.root = document.createElementNS(org.xml3d.xml3dNS, "xml3d");
@@ -58,13 +58,13 @@ Kata.require([
         this.root.setAttribute("width", "100%");
         this.root.setAttribute("height", "100%");
         parentElement.appendChild(this.root);
-        
+
         // find or create defs element
         this.defs = this.root.getElementsByTagNameNS(org.xml3d.xml3dNS, "defs")[0];
         if (this.defs == undefined)
         {
             this.defs = document.createElementNS(org.xml3d.xml3dNS, "defs");
-            this.root.insertChild(this.defs,  this.root.firstChild);
+            this.root.insertBefore(this.defs, this.root.firstChild);
         }
 
         // enable WebGL renderer if we don't have native implementation
@@ -83,47 +83,55 @@ Kata.require([
         
         // bind message handlers
         var thus = this;
-        
+
         // set mouse handlers for XML3D canvas
         $(this.root).bind("mousedown", function (e){thus.mouseDown(e)});
         $(this.root).bind("mouseup",   function (e){thus.mouseUp(e)});
         $(this.root).bind("mousemove", function (e){thus.mouseMove(e)});
         this.root.addEventListener('mousewheel', function(e) { thus.scrollWheel(e); }, true); // Chrome
         this.root.addEventListener('DOMMouseScroll', function(e) { thus.scrollWheel(e); }, true); // Firefox
-        
+
         // set keyboard handlers for entire document
         $(document).bind("keydown",   function (e){thus.keyDown(e)});
         $(document).bind("keyup",     function (e){thus.keyUp(e)});
-        
+
         // map for pressed keys
         this.keyDownMap = {};
-        
+
         // perform regular updates
         this.scheduledUpdates = [];
         setInterval(Kata.bind(this.update, this), 16);
     };
-    
+
     XML3DGraphics.initialize = function(scenefile, cb) {
-        $.ajax({
-            url: scenefile,
-            success: function(data) {
-               window.xml3dText = data;
-               cb();
-            },
-            dataType: "text"
-        });
+    	if (scenefile != null)
+    	{
+    		$.ajax({
+	            url: scenefile,
+	            success: function(data) {
+	                window.xml3dText = data;
+	                cb();
+	            },
+	            error: function() {
+	                cb();
+	            },
+	            dataType: "text"
+	        });
+    	} else {
+    		cb();
+    	}
     }
-    
+
     // push an update into the queue and return it's index
     XML3DGraphics.prototype.scheduleUpdate = function(newUpdate) {
         return this.scheduledUpdates.push(newUpdate) - 1;
     };
-    
+
     // remove an update from the queue by it's index
     XML3DGraphics.prototype.cancelUpdate = function(updateIndex) {
         delete this.scheduledUpdates[updateIndex];
     };
-    
+
     // handle updates
     XML3DGraphics.prototype.update = function() {
         for (var index in this.scheduledUpdates)
@@ -136,18 +144,18 @@ Kata.require([
     };
 
     // Messages from the KataJS
-    
+
     XML3DGraphics.prototype.methodTable = {};
-    
+
     XML3DGraphics.prototype.methodTable["create"] = function(msg) {
         console.log("create " + msg.id);
-        
+
         this.objects[msg.id] = new XML3DVWObject(msg, this);
     };
-    
+
     XML3DGraphics.prototype.methodTable["mesh"] = function(msg) {
         console.log("mesh " + msg.id);
-        
+
         if (this.objects[msg.id] === undefined)
             console.error("Cannot add a mesh. Object " + msg.id + " does not exist.");
         else
@@ -156,10 +164,10 @@ Kata.require([
                 msg.type === undefined ? "xml3d" : msg.type
             );
     };
-    
+
     XML3DGraphics.prototype.methodTable["move"] = function(msg) {
         /*var EPS = 0.001;
-        
+
         if ((this.lastMoveMsg == undefined ||
             Math.abs(this.lastMoveMsg.pos[0] - msg.pos[0]) > EPS ||
             Math.abs(this.lastMoveMsg.pos[1] - msg.pos[1]) > EPS ||
@@ -173,20 +181,20 @@ Kata.require([
         {
             console.debug("move " + msg.id);
             console.debug(msg);
-            
+
             this.lastMoveMsg = msg;
         }*/
-            
-        
+
+
         if (this.objects[msg.id] === undefined)
             console.error("Cannot move an object " + msg.id + " .It does not exist.");
         else
             this.objects[msg.id].move(msg, msg.interpolate == undefined ? true : msg.interpolate);
     }
-    
+
     XML3DGraphics.prototype.methodTable["animate"] = function(msg) {
         //console.log("animate " + msg.id + " " + msg.animation);
-        
+
         if (this.objects[msg.id] === undefined)
             console.error("Cannot animate an object " + msg.id + ". It does not exist.");
         else
@@ -209,25 +217,25 @@ Kata.require([
     
     XML3DGraphics.prototype.methodTable["camera"] = function(msg) {
         console.log("camera " + msg.id);
-        
+
         if (this.objects[msg.id] === undefined)
             console.error("Cannot add a mesh. Object " + msg.id + " does not exist.");
         else
             this.objects[msg.id].initCamera();
     }
-    
+
     XML3DGraphics.prototype.methodTable["attachcamera"] = function(msg) {
         console.log("attachcamera " + msg.id);
-        
+
         if (this.objects[msg.id] === undefined)
             console.error("Cannot attach camera. Object " + msg.id + " does not exist.");
-        else 
+        else
             this.objects[msg.id].attachCamera(msg);
     }
-    
+
     XML3DGraphics.prototype.methodTable["destroy"] = function(msg) {
         console.log("destroy " + msg.id);
-        
+
         if (this.objects[msg.id] === undefined)
             console.error("Cannot destroy  object " + msg.id + ". It does not exist.");
         else
@@ -236,7 +244,7 @@ Kata.require([
             delete this.objects[msg.id];
         }
     }
-    
+
     XML3DGraphics.prototype.methodTable["disable"] = function(msg) {
         if (msg.type == "mousemove")
             this.mouseMoveMessageEnabled = false;
@@ -245,7 +253,7 @@ Kata.require([
         else if (msg.type == "drag")
             this.dragMessageEnabled = false;
     };
-    
+
     XML3DGraphics.prototype.methodTable["enable"] = function(msg) {
         if (msg.type == "mousemove")
             this.mouseMoveMessageEnabled = true;
@@ -254,29 +262,29 @@ Kata.require([
         else if (msg.type == "drag")
             this.dragMessageEnabled = true;
     };
-    
+
     // TODO: Implement ray-tracing support (message "raytrace" to gfx and "intersections" in response)
-    
+
     XML3DGraphics.prototype.methodTable["unknown"] = function(msg) {
         console.log("unknown message: " + msg.msg);
         console.log(msg);
     };
-    
+
     XML3DGraphics.prototype.send = function(obj) {
         obj.msg = obj.msg.toLowerCase();
-        
+
         if (this.methodTable[obj.msg])
             this.methodTable[obj.msg].call(this, obj);
         else
             this.methodTable["unknown"].call(this, obj);
     };
-    
+
     // Messages to KataJS
-    
+
     XML3DGraphics.prototype.setInputCallback = function(cb) {
         this.inputCallback = cb;
     };
-    
+
     XML3DGraphics.prototype.cloneEvent = function(e) {
         var ret = {};
         for (var key in e) {
@@ -288,17 +296,17 @@ Kata.require([
         }
         return ret;
     }
-    
+
     XML3DGraphics.prototype.initMouseEventMessage = function(jQueryEvent, eventName) {
         var e = jQueryEvent.originalEvent;
-        
+
         var msg = {
             msg: eventName ? eventName : e.type,
             event: this.cloneEvent(e),
             x: e.clientX, // corrected below
             y: e.clientY, // corrected below
-            clientX: e.clientX, 
-            clientY: e.clientX, 
+            clientX: e.clientX,
+            clientY: e.clientY,
             spaceid: this.spaceID,
             camerapos: null, // computed below
             dir: null, // computed below
@@ -306,7 +314,7 @@ Kata.require([
             ctrlKey: e.ctrlKey,
             altKey: e.altKey
         };
-        
+
         // correct position relative to canvas
         var elem = this.root;
         while (elem != null) {
@@ -320,31 +328,29 @@ Kata.require([
                 elem = elem.offsetParent;
             }
         }
-        
+
         // compute camera configuration for pixel under cursor
         // FIXME: generateRay returns {origin:[0,0,0],direction:[0,0,-1]} for every pixel
-        //var ray = this.root.generateRay(msg.x, msg.y);
-        //msg.camerapos = [ray.origin.x, ray.origin.y, ray.origin.z];
-        //msg.dir = [ray.direction.x, ray.direction.y, ray.direction.z];
-        msg.camerapos = [0, 0, 0];
-        msg.dir = [0,0,-1];
-        
+        var ray = this.root.generateRay(msg.x, msg.y);
+        msg.camerapos = [ray.origin.x, ray.origin.y, ray.origin.z];
+        msg.dir = [ray.direction.x, ray.direction.y, ray.direction.z];
+
         return msg;
     };
-    
+
     XML3DGraphics.prototype.mouseDown = function(e) {
         var msg = this.initMouseEventMessage(e, "mousedown");
         msg.button = e.button;
         this.inputCallback(msg);
-        
+
         this.lastMouseDownPosition = {x: e.clientX, y: e.clientY};
-        
+
         if (this.pickMessageEnabled)
         {
             msg.msg = "pick";
             msg.pos = [e.originalEvent.position.x, e.originalEvent.position.y, e.originalEvent.position.z];
             msg.normal = [e.originalEvent.normal.x, e.originalEvent.normal.y, e.originalEvent.normal.z];
-            
+
             // look for object id
             var elem = e.target;
             while (!elem.hasAttribute("sirikataObject") && elem.tagName != "xml3d")
@@ -353,18 +359,21 @@ Kata.require([
                 msg.id = elem.id;
             else
                 msg.id = null;
+
+            this.inputCallback(msg);
         }
     };
-    
+
     XML3DGraphics.prototype.mouseUp = function(e) {
         var msg = this.initMouseEventMessage(e, "mouseup");
         msg.button = e.button;
-        
+        this.inputCallback(msg);
+
         if (this.lastMouseDownPosition)
         {
             var dx = Math.abs(this.lastMouseDownPosition.x - msg.clientX);
             var dy = Math.abs(this.lastMouseDownPosition.y - msg.clientY);
-            
+
             if (dx < 2 && dy < 2)
             {
                 // convert "mouseup" message to "click"
@@ -377,24 +386,26 @@ Kata.require([
                 msg.msg = "drop";
                 msg.dx = dx;
                 msg.dy = dy;
-                
+
                 this.inputCallback(msg);
             }
+
+            delete this.lastMouseDownPosition;
         }
     };
-    
+
     XML3DGraphics.prototype.mouseMove = function(e) {
         if (this.mouseMoveMessageEnabled)
         {
             var msg = this.initMouseEventMessage(e, "mousemove");
             this.inputCallback(msg);
         }
-        
+
         if (this.dragMessageEnabled && this.lastMouseDownPosition)
         {
             var msg = this.initMouseEventMessage(e, "drag");
-            msg.dx = Math.abs(this.lastMouseDownPosition.x - msg.clientX);
-            msg.dy = Math.abs(this.lastMouseDownPosition.y - msg.clientY);
+            msg.dx = msg.clientX - this.lastMouseDownPosition.x;
+            msg.dy = msg.clientY - this.lastMouseDownPosition.y;
             this.inputCallback(msg);
         }
     };
@@ -405,7 +416,7 @@ Kata.require([
             this.keyDownMap[e.keyCode] = true;
         else
             repeat = true;
-        
+
         var msg = {
             msg: "keydown",
             altKey: e.altKey,
@@ -415,13 +426,13 @@ Kata.require([
             repeat: repeat,
             keyCode: e.keyCode
         };
-        
+
         this.inputCallback(msg);
     };
 
     XML3DGraphics.prototype.keyUp = function(e) {
         this.keyDownMap[e.keyCode] = false;
-        
+
         var msg = {
             msg: "keyup",
             altKey: e.altKey,
@@ -430,7 +441,7 @@ Kata.require([
             shiftKey: e.shiftKey,
             keyCode: e.keyCode
         };
-        
+
         this.inputCallback(msg);
     };
 
@@ -442,7 +453,7 @@ Kata.require([
             ctrlKey: e.ctrlKey,
             altKey: e.altKey
         };
-        
+
         if (e.wheelDeltaX || e.wheelDeltaY) {         // Chrome
             msg.dy = e.wheelDeltaY || 0;
             msg.dx = -e.wheelDeltaX || 0;
@@ -458,20 +469,20 @@ Kata.require([
                 msg.dx = 0;
             }
         }
-        
+
         this.inputCallback(msg);
     };
-        
+
     /* XML3DVMObject class */
-    
+
     function XML3DVWObject(msg, gfx) {
         this.id = msg.id;
         this.spaceID = msg.spaceID;
         this.gfx = gfx;
-        
-        this.curLocation = Kata.LocationSet(msg);    
+
+        this.curLocation = Kata.LocationSet(msg);
     }
-    
+
     XML3DVWObject.prototype.initMesh = function(mesh, type) {
         if (this.objType === undefined)
         {
@@ -480,42 +491,44 @@ Kata.require([
                 this.objType = "mesh";
                 this.mesh = mesh;
                 var thus = this;
-                
+
                 // load mesh asynchronously
                 $.ajax({
                     url: mesh,
                     success: function(data) {
                         // parse received mesh
                         var doc = new DOMParser().parseFromString(data, "text/xml");
-                        
+
                         // notify gfx that we have loaded the mesh
                         thus.gfx.inputCallback({msg: "loaded", id: thus.id});
-                        
+
                         // append new object to the scene
                         if (doc && doc.documentElement.nodeName.toLowerCase() == "xml3d")
                         {
                             // create transformation
-                            thus.transformID = "transform" + thus.id;
+                            thus.transformID = "transform-" + thus.id;
                             thus.transform = document.createElementNS(org.xml3d.xml3dNS, "transform");
                             thus.transform.setAttribute("id", thus.transformID);
                             thus.gfx.defs.appendChild(thus.transform);
-                            
+
                             // add suffix to id's in the mesh document
                             thus.appendSuffixToIds(doc.documentElement, thus.id);
-                            
+
                             // function to update location of the mesh
                             thus.updateLocation = function(interpolate) {
                                 var location = Kata.LocationExtrapolate(this.curLocation, new Date().getTime());
-                                
-                                this.transform.translation = new XML3DVec3(location.pos[0], location.pos[1], location.pos[2]);
+
+                                this.transform.translation.x = location.pos[0];
+                                this.transform.translation.x = location.pos[1];
+                                this.transform.translation.x = location.pos[2];
                                 this.transform.rotation.setQuaternion(new XML3DVec3(location.orient[0], location.orient[1], location.orient[2]), location.orient[3]);
-                                
+
                                 return !interpolate;
                             }
-                            
+
                             // place new mesh at the last received location
                             thus.updateLocation(false);
-                            
+
                             // create group
                             thus.group = document.createElementNS(org.xml3d.xml3dNS, "group");
                             thus.group.setAttribute("id", thus.id);
@@ -523,24 +536,24 @@ Kata.require([
                             thus.group.transform = "#" + thus.transformID;
                             // TODO: set shader when support will be added to JavascriptGraphicsAPI
                             thus.gfx.root.appendChild(thus.group);
-                            
+
                             // add mesh to the group
                             for (var n = doc.documentElement.firstChild; n; n = n.nextSibling)
                                 thus.group.appendChild(document.importNode(n, true));
-                            
+
                             // configure animations for the new mesh
                             var animationsNode = thus.group.getElementsByTagName("animations")[0];
                             if (animationsNode) {
                                 // create an array with animations
                                 thus.animations = {};
-                                
+
                                 // parse embedded animations and fill created array
                                 for (var childIndex in animationsNode.childNodes) {
                                     var animElem = animationsNode.childNodes[childIndex];
-                                    
+
                                     if (animElem.nodeType == Node.ELEMENT_NODE && animElem.nodeName.toLowerCase() == "animation" && animElem.hasAttribute("name") && animElem.hasAttribute("length") && animElem.hasAttribute("data")) {
                                         var name = animElem.getAttribute("name");
-                                        
+
                                         thus.animations[name] = {
                                             name: name,
                                             data: animElem.getAttribute("data"),
@@ -550,7 +563,7 @@ Kata.require([
                                         };
                                     }
                                 }
-                                
+
                                 // run last saved animation
                                 if (thus.savedAnimation != undefined) {
                                     thus.animate(thus.savedAnimation);
@@ -572,37 +585,41 @@ Kata.require([
             console.error("Cannot set object " + msg.id + " as mesh. " +
                 "It is already a " + this.objType + ".");
     }
-    
+
     XML3DVWObject.prototype.initCamera = function() {
         if (this.objType === undefined)
         {
             this.objType = "camera";
-            
+
             // create view element and set an id
-            this.viewID = "view" + this.id;
+            this.viewID = "view-" + this.id;
             this.view = document.createElementNS(org.xml3d.xml3dNS, "view");
             this.view.setAttribute("id", this.viewID);
-            
+
+            var thus = this;
+
             // function to update location of the camera
             this.updateLocation = function(interpolate) {
-                var location = Kata.LocationExtrapolate(this.curLocation, new Date().getTime());
-                
-                this.view.position = new XML3DVec3(location.pos[0], location.pos[1], location.pos[2]);
-                this.view.orientation.setQuaternion(new XML3DVec3(location.orient[0], location.orient[1], location.orient[2]), location.orient[3]);
-                
+                var location = Kata.LocationExtrapolate(thus.curLocation, new Date().getTime());
+
+                thus.view.position.x = location.pos[0];
+                thus.view.position.y = location.pos[1];
+                thus.view.position.z = location.pos[2];
+                thus.view.orientation.setQuaternion(new XML3DVec3(location.orient[0], location.orient[1], location.orient[2]), location.orient[3]);
+
                 return !interpolate;
             }
-            
+
             // place new camera at the last received location
             this.updateLocation(false);
-            
+
             this.gfx.root.appendChild(this.view);
         }
         else
             console.error("Cannot set object " + msg.id + " as camera. " +
                 "It is already a " + this.objType + ".");
     }
-    
+
     // attach camera to the selected view
     XML3DVWObject.prototype.attachCamera = function(msg) {
         if (this.objType != "camera")
@@ -617,20 +634,20 @@ Kata.require([
             this.gfx.spaceID = msg.spaceid;
         }
     }
-    
+
     // move object to a new location (derived from message)
     XML3DVWObject.prototype.move = function(msg, interpolate) {
         // set message time if not set (required to be set by Kata.LocationUpdate)
         if (!msg.time)
             msg.time = new Date().getTime();
-        
+
         // create proper location update from the message (fill in missing fields)
         var newLocation = Kata.LocationUpdate(msg, this.curLocation, this.prevLocation, msg.time || new Date().getTime())
-        
+
         // save new location
         this.prevLocation = this.curLocation;
         this.curLocation = newLocation;
-        
+
         // schedule an update
         if (this.updateLocation)
         {
@@ -697,7 +714,7 @@ Kata.require([
             window.clearInterval(this.animations[this.runningAnimation].handle);
             delete this.runningAnimation;
         }
-        
+
         // save animation if we haven't loaded mesh yet
         if (this.animations == undefined) {
             this.savedAnimation = animationName;
@@ -727,17 +744,17 @@ Kata.require([
             );
         }
     }
-    
+
     XML3DVWObject.prototype.destroy = function() {
         if (this.objType == "mesh") {
             // stop animations if they are running
             if (this.runningAnimation != undefined)
                 window.clearInterval(this.animationIntervalHandle);
-            
+
             // cancel last update if scheduled
             if (this.lastScheduledUpdateIndex != undefined)
                 this.gfx.cancelUpdate(this.lastScheduledUpdateIndex);
-            
+
             // remove avatar from the scene
             this.group.parentNode.removeChild(this.group);
             this.transform.parentNode.removeChild(this.transform);
@@ -745,13 +762,13 @@ Kata.require([
             // detach camera if attached
             if (this.gfx.root.activeView == "#" + this.viewID)
                 this.gfx.root.activeView = "";
-            
+
             // remove view from the scene
             this.view.parentNode.removeChild(this.view);
         }
     }
-    
-    // rename all ids in the element and all of it's children 
+
+    // rename all ids in the element and all of it's children
     // by adding suffix to the end of the id
     XML3DVWObject.prototype.appendSuffixToIds = function(element, suffix) {
         // reference attribute database
@@ -764,26 +781,26 @@ Kata.require([
             "animation": ["data"],
             "data": ["src"]
         };
-        
+
         // refernce css property database
         var refCSSPropDB = {
-            "group": ["transform", "shader"]            
+            "group": ["transform", "shader"]
         };
-        
+
         // function to rename reference attributes
         function fixAttrs(element, suffix, attrs) {
             for (var i in attrs)
                 if (element.hasAttribute(attrs[i]))
                     element.setAttribute(attrs[i], element.getAttribute(attrs[i]) + suffix);
         }
-        
+
         // rename reference attributes common for all elements
         fixAttrs(element, suffix, refAttrDB[""]);
-        
+
         // rename reference attributes specific to this element
         if (refAttrDB[element.nodeName.toLowerCase()] !== undefined)
             fixAttrs(element, suffix, refAttrDB[element.nodeName.toLowerCase()]);
-        
+
         // function to rename reference CSS properties
         function fixCSSProps(element, suffix, attrs) {
             // no support for style in WebGL
@@ -797,19 +814,19 @@ Kata.require([
                      element.style[attrs[i]] = "url(" + value.substring(4, value.length - 1) + suffix + ")";
             }
         }
-        
+
         // rename reference CSS properties specific to this element
         if (refCSSPropDB[element.nodeName.toLowerCase()] !== undefined)
             fixCSSProps(element, suffix, refCSSPropDB[element.nodeName.toLowerCase()]);
-        
+
         // special handling for "script" attribute, since it may contain URN reference
         // which must remain unchanged
-        if (element.nodeName.toLowerCase() == "lightshader" || 
+        if (element.nodeName.toLowerCase() == "lightshader" ||
             element.nodeName.toLowerCase() == "shader" ||
             element.nodeName.toLowerCase() == "data")
             if (element.hasAttribute("script") && element.getAttribute("script").substring(0, 3) != "urn")
                 fixAttrs(element, suffix, ["script"]);
-        
+
         // process child elements recursively
         for (var childIndex in element.childNodes)
             if (element.childNodes[childIndex].nodeType == Node.ELEMENT_NODE)

@@ -113,6 +113,8 @@ Kata.require([
              );
          }
          else {
+             this.ODPRouter = bdl.mRouter;
+             this.ODPDispatcher = bdl.mDispatcher;
              this.ODPBaseDatagramLayer = bdl;
          }
      };
@@ -230,6 +232,9 @@ Kata.require([
     Kata.Presence.prototype.predictedLocation = function() {
         return this._requestedLocation();
     };
+    Kata.Presence.prototype.predictedLocationAtTime = function(time) {
+        return Kata.LocationExtrapolate(this._requestedLocation(), time);
+    };
 
      Kata.Presence.prototype.setPosition = function(val){
          var now = Kata.now(this.mSpace);
@@ -346,7 +351,12 @@ Kata.require([
          this._sendHostedObjectMessage(msg);
      };
      Kata.Presence.prototype.setVisual = function(val) {
-         var msg = new Kata.ScriptProtocol.FromScript.Visual(this.mSpace, this.mID, val);
+         var msg = new Kata.ScriptProtocol.FromScript.Location(this.mSpace, this.mID, val);
+         msg.visual = val;
+         this._sendHostedObjectMessage(msg);
+     };
+     Kata.Presence.prototype.setPhysics = function(val) {
+         var msg = new Kata.ScriptProtocol.FromScript.Physics(this.mSpace, this.mID, val);
          this._sendHostedObjectMessage(msg);
      };
 

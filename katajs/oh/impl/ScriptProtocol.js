@@ -91,6 +91,9 @@ Kata.require([
                  Location : "floc",
                  Visual : "fvis",
                  Query : "fque",
+                 QueryUpdate : "fqup",
+                 QueryRemoval : "fqrm",
+                 Physics : "fphys",
                  Subscription : "fsub",
 
                  CreateObject : "fcre",
@@ -109,7 +112,7 @@ Kata.require([
                  return data;
              },
 
-             Connect : function(space, auth, loc, vis) {
+             Connect : function(space, auth, loc, vis, query) {
                  this.__type = Kata.ScriptProtocol.FromScript.Types.Connect;
                  this.space = space;
                  this.auth = auth;
@@ -117,6 +120,8 @@ Kata.require([
                      Kata.LocationCopyUnifyTime(loc,this);
                  if (vis)
                      this.visual = vis;
+                 if (query)
+                     this.query = query;
              },
              RegisterGUIMessage : function (event) {
                  this.__type = Kata.ScriptProtocol.FromScript.Types.EnableGUIMessage;
@@ -132,7 +137,17 @@ Kata.require([
                  this.msg = msg;
                  this.event = event;
              },
-
+             QueryUpdate: function (space,id,solidAngle){
+                 this.__type = Kata.ScriptProtocol.FromScript.Types.QueryUpdate;
+                 this.space = space;
+                 this.id = id;                 
+                 this.solidAngle=solidAngle;
+             },
+             QueryRemoval: function (space,id){
+                 this.__type = Kata.ScriptProtocol.FromScript.Types.QueryRemoval;
+                 this.space = space;
+                 this.id = id;                 
+             },
              Disconnect : function(space, id) {
                  this.__type = Kata.ScriptProtocol.FromScript.Types.Disconnect;
                  this.space = space;
@@ -182,6 +197,15 @@ Kata.require([
                  this.observed = observed;
                  this.enable = enable;
              },
+             Physics : function(space, id, data) {
+                 this.__type = Kata.ScriptProtocol.FromScript.Types.Physics;
+                 this.space = space;
+                 this.id = id;
+                 if (!(data instanceof Array)) {
+                     throw "ScriptProtocol.Physics: data must be serialized array of bytes";
+                 }
+                 this.data = data;
+             },
              CreateObject : function(script, cons, args) {
                  this.__type = Kata.ScriptProtocol.FromScript.Types.CreateObject;
                  this.script = script;
@@ -202,6 +226,20 @@ Kata.require([
                  this.space = space+observer;
 				 this.spaceid = this.space;                 
                  this.id = remotePresence.id();
+             },
+             /**
+              * Space is the space holding the object, observer is the camera
+              * pos is the list of positions
+              * data contains metadata to parse the response
+              */
+             GFXProjectPoint : function (space, observer, pos, data){
+                 this.__type = Kata.ScriptProtocol.FromScript.Types.GraphicsMessage;
+                 this.msg="ProjectPoint";
+                 this.space = space+observer;
+                 this.spaceid = this.space;
+                 this.id = observer;
+                 this.pos = pos;
+                 this.data = data;
              },
              GFXCustom : function(space, observer, data) {
                  this.__type = Kata.ScriptProtocol.FromScript.Types.GraphicsMessage;
@@ -248,7 +286,7 @@ Kata.require([
                  this.len = len;
                  this.repeat = repeat;
              },
-             GFXLabel : function(space, observer, remoteID, label, offset) {
+             GFXLabel : function(space, observer, remoteID, label, offset, color) {
                  this.__type = Kata.ScriptProtocol.FromScript.Types.GraphicsMessage;
                  this.msg="Label";
                  this.space = space+observer;
@@ -256,6 +294,7 @@ Kata.require([
                  this.spaceid = this.space;
                  this.label = label;
                  this.offset = offset;
+                 this.color = color;
              },
              GFXDestroyNode : function(space, observer, remotePresence) {
                  this.__type = Kata.ScriptProtocol.FromScript.Types.GraphicsMessage;
@@ -264,13 +303,16 @@ Kata.require([
                  this.msg="Destroy";
                  this.id = remotePresence.id();
              },
-             generateGFXUpdateVisualMessages : function(space, observer, remotePresence) {
+             generateGFXUpdateVisualMessages : function(space, observer, remotePresence, prevMesh) {
                  var messageList=[];
                  if (remotePresence.rMesh) {
                      messageList.push(new Kata.ScriptProtocol.FromScript.GFXUpdateVisualMesh(space, 
                         observer, remotePresence.id(), remotePresence.rMesh, remotePresence.rAnim, remotePresence.rUpAxis,
                         remotePresence.scale()));
-                 }else {
+                 }else if (prevMesh) {
+                     messageList.push(new Kata.ScriptProtocol.FromScript.GFXUpdateVisualMesh(space,
+                        observer, remotePresence.id(), null));
+                 } else {
                     //MIGHT be a light or somesuch
                  }
                  return messageList;

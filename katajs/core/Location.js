@@ -312,7 +312,7 @@ Kata.LocationCopy = function(destination, source) {
         destination.posTime=source.posTime!==undefined?source.posTime:source.time;
         destination.pos=source.pos.slice(0);
     }
-    if (destination.orient!==undefined) {            
+    if (source.orient!==undefined) {            
         destination.orientTime=source.orientTime!==undefined?source.orientTime:source.time;
         destination.orient=source.orient.slice(0);
     }

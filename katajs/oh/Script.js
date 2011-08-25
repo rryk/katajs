@@ -95,9 +95,10 @@ Kata.require([
       *  @param {Kata.SpaceID} space ID of the space to connect to
       *  @param {string} auth authentication information to pass to the space
       *  @param {function(Kata.Presence)} cb callback to invoke upon completion
+      *  @param {boolean=} query Enable querying for all RemotePresences (false)
       */
-     Kata.Script.prototype.connect = function(args, auth, cb) {
-         var msg = new Kata.ScriptProtocol.FromScript.Connect(args.space, auth, args.loc, args.visual);
+     Kata.Script.prototype.connect = function(args, auth, cb, query) {
+         var msg = new Kata.ScriptProtocol.FromScript.Connect(args.space, auth, args.loc, args.visual, query);
          this.mConnectRequests[args.space] = cb;
          this._sendHostedObjectMessage(msg);
      };
@@ -166,8 +167,14 @@ Kata.require([
          var msg = new Kata.ScriptProtocol.FromScript.CreateObject(script, cons, args);
          this._sendHostedObjectMessage(msg);
      };
-
-
+     Kata.Script.prototype.queryUpdate = function (space,id,solidAngle){
+         var msg = new Kata.ScriptProtocol.FromScript.QueryUpdate(space,id,solidAngle);;
+         this._sendHostedObjectMessage(msg);
+     };
+     Kata.Script.prototype.queryRemoval = function (space,id){
+         var msg = new Kata.ScriptProtocol.FromScript.QueryRemoval(space,id);
+         this._sendHostedObjectMessage(msg);
+     };
      Kata.Script.prototype.Persistence = {};
      /** Request the given data be read.
       * @param readset set of keys to be read
@@ -292,20 +299,12 @@ Kata.require([
 
     /** Handle an received ODP message. */
     Kata.Script.prototype._handleReceiveODPMessage = function(channel, msg) {
-        var presence = this.mPresences[msg.space];
-        var delivered_sst=false;
-        if (presence&&presence.ODPDispatcher.dispatchMessage(msg)) {
-            delivered_sst=true;
-            //Kata.warn("Delivered SST worker-wise"); 
-        }
-        if (!delivered_sst) {
-            // Reconstruct and then delegate to ODP.Service.
-            this._deliverODPMessage(
-                new Kata.ODP.Endpoint(msg.space, msg.source_object, msg.source_port),
-                new Kata.ODP.Endpoint(msg.space, msg.dest_object, msg.dest_port),
-                msg.payload
-            );
-        }
+        // Reconstruct and then delegate to ODP.Service.
+        this._deliverODPMessage(
+            new Kata.ODP.Endpoint(msg.space, msg.source_object, msg.source_port),
+            new Kata.ODP.Endpoint(msg.space, msg.dest_object, msg.dest_port),
+            msg.payload
+        );
     };
 
      Kata.Script.prototype._handlePresenceLocUpdate = function(channel, msg) {
