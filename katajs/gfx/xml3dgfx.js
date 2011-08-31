@@ -478,9 +478,6 @@ Kata.require([
                         // parse received mesh
                         var doc = new DOMParser().parseFromString(data, "text/xml");
 
-                        // notify gfx that we have loaded the mesh
-                        thus.gfx.inputCallback({msg: "loaded", id: thus.id});
-
                         // append new object to the scene
                         if (doc && doc.documentElement.nodeName.toLowerCase() == "xml3d")
                         {
@@ -549,10 +546,15 @@ Kata.require([
                                     delete thus.savedAnimation;
                                 }
                             }
+
+                            // notify gfx that we have loaded the mesh
+                            thus.gfx.inputCallback({msg: "loaded", id: thus.id});
                         }
+                        else
+                            thus.gfx.inputCallback({msg: "failedToParse", id: thus.id});
                     },
                     error: function() {
-                        console.error("Failed to load mesh for object " + thus.id);
+                        thus.gfx.inputCallback({msg: "failedToLoad", id: thus.id});
                     },
                     dataType: "text"
                 });
