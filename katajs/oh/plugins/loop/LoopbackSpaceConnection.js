@@ -94,7 +94,7 @@ Kata.require([
          this.mObjectID[id] = object;
          this.mLocalID[object] = id;
          if (object) // FIXME real presence_id below
-             this.mParent.connectionResponse(id, true, {space : this.mSpaceURL, object : object}, {loc:loc, visual:visual});
+             this.mParent.connectionResponse(id, true, {space : this.mSpaceURL, object : object}, {loc:loc, vis:visual});
          else
              this.mParent.connectionResponse(id, false);
      };
