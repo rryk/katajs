@@ -153,7 +153,7 @@ Kata.require([
     };
 
     Kata.Quaternion.prototype.multiply = function(other) {
-        if (other.prototype === Kata.Quaternion) {
+        if (other instanceof Kata.Quaternion) {
             return new Kata.Quaternion(
                 this[3]*other[0] + this[0]*other[3] + this[1]*other[2] - this[2]*other[1],
                 this[3]*other[1] + this[1]*other[3] + this[2]*other[0] - this[0]*other[2],
