@@ -495,8 +495,8 @@ Kata.require([
                                 var location = Kata.LocationExtrapolate(this.curLocation, new Date().getTime());
 
                                 this.transform.translation.x = location.pos[0];
-                                this.transform.translation.x = location.pos[1];
-                                this.transform.translation.x = location.pos[2];
+                                this.transform.translation.y = location.pos[1];
+                                this.transform.translation.z = location.pos[2];
                                 this.transform.rotation.setQuaternion(new XML3DVec3(location.orient[0], location.orient[1], location.orient[2]), location.orient[3]);
 
                                 return !interpolate;
@@ -509,7 +509,7 @@ Kata.require([
                             thus.group = document.createElementNS(org.xml3d.xml3dNS, "group");
                             thus.group.setAttribute("id", thus.id);
                             thus.group.setAttribute("sirikataObject", "true");
-                            thus.group.transform = "#" + thus.transformID;
+                            thus.group.setAttribute("transform", "#" + thus.transformID);
                             // TODO: set shader when support will be added to JavascriptGraphicsAPI
                             thus.gfx.root.appendChild(thus.group);
 
