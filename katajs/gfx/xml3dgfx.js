@@ -90,22 +90,22 @@ Kata.require([
     };
 
     XML3DGraphics.initialize = function(scenefile, cb) {
-    	if (scenefile != null)
-    	{
-    		$.ajax({
-	            url: scenefile,
-	            success: function(data) {
-	                window.xml3dText = data;
-	                cb();
-	            },
-	            error: function() {
-	                cb();
-	            },
-	            dataType: "text"
-	        });
-    	} else {
-    		cb();
-    	}
+        if (scenefile)
+        {
+            $.ajax({
+                url: scenefile,
+                success: function(data) {
+                    window.xml3dText = data;
+                    cb();
+                },
+                error: function() {
+                    cb();
+                },
+                dataType: "text"
+            });
+        } else {
+            cb();
+        }
     }
 
     // push an update into the queue and return it's index
@@ -332,12 +332,32 @@ Kata.require([
 
             // look for object id
             var elem = e.target;
-            while (!elem.hasAttribute("sirikataObject") && elem.tagName != "xml3d")
-                elem = elem.parentNode;
-            if (elem.tagName != "xml3d")
-                msg.id = elem.id;
-            else
+            if (elem.tagName == "xml3d")
+            {
+                // we have hit an empty space
                 msg.id = null;
+                msg.idHint = "nothing";
+            }
+            else
+            {
+                // search for parent Sirikata object or scene root
+                while (!elem.hasAttribute("sirikataObject") && elem.tagName != "xml3d")
+                    elem = elem.parentNode;
+
+                if (elem.tagName == "xml3d")
+                {
+                    // we have hit an object that is only loaded locally and is not known to the
+                    // space server
+                    msg.id = null;
+                    msg.idHint = "local-world-object";
+                }
+                else
+                {
+                    // we have hit a Sirikata object
+                    msg.id = elem.id;
+                    msg.idHint = "sirikata-object";
+                }
+            }
 
             this.inputCallback(msg);
         }
