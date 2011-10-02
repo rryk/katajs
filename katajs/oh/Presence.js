@@ -301,7 +301,7 @@ Kata.require([
      };
     /** Set angular velocity of the object using a quaternion. */
     Kata.Presence.prototype.setAngularVelocity = function(ang_vel) {
-        if (! "toAngleAxis" in ang_vel) ang_vel = new Kata.Quaternion(ang_vel);
+        if (! ("toAngleAxis" in ang_vel)) ang_vel = new Kata.Quaternion(ang_vel);
         var aa = ang_vel.toAngleAxis();
         var angvel = aa.angle;
         var axis = aa.axis;
