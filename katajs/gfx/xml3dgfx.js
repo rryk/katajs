@@ -291,7 +291,8 @@ Kata.require([
             dir: null, // computed below
             shiftKey: e.shiftKey,
             ctrlKey: e.ctrlKey,
-            altKey: e.altKey
+            altKey: e.altKey,
+            target: e.target.id
         };
 
         // correct position relative to canvas
