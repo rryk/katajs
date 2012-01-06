@@ -55,8 +55,8 @@ Kata.require([
             this.root = document.importNode(xml3dDoc.documentElement, true);
         }
 
-        this.root.style.width = "100%";
-        this.root.style.height = "100%";
+        this.root.setAttribute("width", "100%");
+        this.root.setAttribute("height", "100%");
         parentElement.appendChild(this.root);
 
         // find or create defs element
@@ -65,6 +65,20 @@ Kata.require([
         {
             this.defs = document.createElementNS(org.xml3d.xml3dNS, "defs");
             this.root.insertBefore(this.defs, this.root.firstChild);
+        }
+
+        // enable WebGL renderer if we don't have native implementation
+        if (this.root.style == undefined)
+        {
+            if (org.xml3d.webgl.supported())
+            {
+                org.xml3d.data.configure([this.root]);
+                org.xml3d.webgl.configure([this.root]);
+            }
+            else
+            {
+                alert("Error! Please use a browser that supports WebGL or native XML3D!");
+            }
         }
 
         // bind message handlers
@@ -612,10 +626,13 @@ Kata.require([
                 return !interpolate;
             }
 
-            // place new camera at the last received location
-            this.updateLocation(false);
-
             this.gfx.root.appendChild(this.view);
+
+            // place new camera at the last received location
+            // Note. It is important to update location after appending <view>
+            // node to the scene as WebGL only adds needed methods and
+            // properties after it is added to the document
+            this.updateLocation(false);
         }
         else
             console.error("Cannot set object " + msg.id + " as camera. " +
@@ -764,6 +781,10 @@ Kata.require([
 
         // function to rename reference CSS properties
         function fixCSSProps(element, suffix, attrs) {
+            // no support for style in WebGL
+            if (element.style == undefined)
+                return;
+
             for (var i in attrs)
             {
                 var value = element.style[attrs[i]];
