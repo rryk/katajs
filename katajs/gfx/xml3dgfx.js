@@ -138,7 +138,8 @@ Kata.require([
         {
             // update may reschedule itself again by returning false
             // otherwise it is deleted from the list of update
-            if (this.scheduledUpdates[index]())
+            var updateFunc = this.scheduledUpdates[index];
+            if (updateFunc())
                 delete this.scheduledUpdates[index];
         }
     };
@@ -497,6 +498,15 @@ Kata.require([
         this.curLocation = Kata.LocationSet(msg);
     }
 
+    XML3DVWObject.prototype.quaternionToAxisAngleValue = function(quat) {
+        var vec = new XML3DVec3(quat[0], quat[1], quat[2]);
+        var rot = new XML3DRotation();
+        rot.setQuaternion(vec, quat[3]);
+        var axis = rot.axis;
+        var angle = rot.angle;
+        return axis.x + " " + axis.y + " " + axis.z + " " + angle;
+    }
+
     XML3DVWObject.prototype.initMesh = function(mesh, type) {
         if (this.objType === undefined)
         {
@@ -529,10 +539,8 @@ Kata.require([
                             thus.updateLocation = function(interpolate) {
                                 var location = Kata.LocationExtrapolate(this.curLocation, new Date().getTime());
 
-                                this.transform.translation.x = location.pos[0];
-                                this.transform.translation.y = location.pos[1];
-                                this.transform.translation.z = location.pos[2];
-                                this.transform.rotation.setQuaternion(new XML3DVec3(location.orient[0], location.orient[1], location.orient[2]), location.orient[3]);
+                                this.transform.setAttribute("translation", location.pos[0] + " " + location.pos[1] + " " + location.pos[2]);
+                                this.transform.setAttribute("rotation", thus.quaternionToAxisAngleValue(location.orient));
 
                                 return !interpolate;
                             }
@@ -618,10 +626,8 @@ Kata.require([
             this.updateLocation = function(interpolate) {
                 var location = Kata.LocationExtrapolate(thus.curLocation, new Date().getTime());
 
-                thus.view.position.x = location.pos[0];
-                thus.view.position.y = location.pos[1];
-                thus.view.position.z = location.pos[2];
-                thus.view.orientation.setQuaternion(new XML3DVec3(location.orient[0], location.orient[1], location.orient[2]), location.orient[3]);
+                thus.view.setAttribute("position", location.pos[0] + " " + location.pos[1] + " " + location.pos[2]);
+                thus.view.setAttribute("orientation", thus.quaternionToAxisAngleValue(location.orient));
 
                 return !interpolate;
             }
@@ -649,7 +655,7 @@ Kata.require([
             console.error("Camera can only be attached to the framebuffer. Stereo is not supported.");
         else
         {
-            this.gfx.root.activeView = "#" + this.viewID;
+            this.gfx.root.setAttribute("activeView", "#" + this.viewID);
             this.gfx.spaceID = msg.spaceid;
         }
     }
@@ -738,8 +744,8 @@ Kata.require([
             this.transform.parentNode.removeChild(this.transform);
         } else if (this.objType == "camera") {
             // detach camera if attached
-            if (this.gfx.root.activeView == "#" + this.viewID)
-                this.gfx.root.activeView = "";
+            if (this.gfx.root.hasAttribute("activeView") && this.gfx.root.getAttribute("activeView") == "#" + this.viewID)
+                this.gfx.root.setAttribute("activeView", "");
 
             // remove view from the scene
             this.view.parentNode.removeChild(this.view);
