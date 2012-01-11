@@ -1,6 +1,6 @@
 // This file is a merged collection of several JavaScript Libraries
 // to run an XML3D system (www.xml3d.org)
-// Please see informations below for individual copyrights and licenses
+// Please see informations below for individual copyrights and licenses  
 // Version: v0.4.6
 
 /*jslint white: false, onevar: false, undef: true, nomen: true, eqeqeq: true, plusplus: true, bitwise: true, regexp: true, newcap: true, immed: true, sub: true, nomen: false */
@@ -2910,6 +2910,8 @@ org.xml3d.data.Adapter.prototype.isAdapterFor = function(aType) {
      return false; // Needs to be overwritten
 };
 
+org.xml3d.data.Adapter.prototype.internalNotifyChanged = function(what, newValue) {
+}
 
 org.xml3d.data.AdapterFactory = function() {
     this.getAdapter = function(node, atype) {
@@ -3125,35 +3127,6 @@ org.xml3d.elementEvents = {
     "framedrawn":1, "mousedown":1, "mouseup":1, "click":1, "mousemove":1,
     "mouseout":1, "update":1, "mousewheel":1
 };
-org.xml3d.configureEvents = function(node) {
-    node.__proto__.__addEventListener = node.__proto__.addEventListener;
-    node.__proto__.__removeEventListener = node.__proto__.removeEventListener;
-
-    node.addEventListener = function(type, listener, useCapture) {
-
-        if(org.xml3d.elementEvents[node.nodeName]) {
-            for (i = 0; i < this.adapters.length; i++) {
-                if (this.adapters[i].addEventListener) {
-                    this.adapters[i].addEventListener(type, listener, useCapture);
-                }
-            }
-        }
-        else
-            this.__addEventListener(type, listener, useCapture);
-    };
-    node.removeEventListener = function(type, listener, useCapture) {
-
-        if(org.xml3d.elementEvents[node.nodeName]) {
-            for (i = 0; i < this.adapters.length; i++) {
-                if (this.adapters[i].removeEventListener) {
-                    this.adapters[i].removeEventListener(type, listener, useCapture);
-                }
-            }
-        }
-        else
-            this.__removeEventListener(type, listener, useCapture);
-    };
-};
 
 // MeshTypes
 org.xml3d.MeshTypes = {};
@@ -3200,7 +3173,6 @@ org.xml3d.event.HANDLED = 2;
  */
 org.xml3d.classInfo.Xml3dNode = function(node, c)
 {
-    org.xml3d.configureEvents(node);
 
     node.xml3ddocument = c.doc;
     node.adapters      = [];
@@ -10771,57 +10743,7 @@ org.xml3d.webgl.createXML3DHandler = (function() {
         //Create renderer
         this.renderer = new org.xml3d.webgl.Renderer(this, canvas.clientWidth, canvas.clientHeight);
 
-        //TODO: Buffer setup, move fullscreen quad out of handler
-
-        //Set up internal frame buffers used for picking and post-processing
-        //SpiderGL requires these buffers to be stored inside the Handler
-        /*this.pickBuffer = new SglFramebuffer(gl, canvas.clientWidth, canvas.clientHeight,
-                [gl.RGBA], gl.DEPTH_COMPONENT16, null,
-                { depthAsRenderbuffer : true }
-        );
-        this.normalPickBuffer = new SglFramebuffer(gl, canvas.clientWidth, canvas.clientHeight,
-                [gl.RGBA], gl.DEPTH_COMPONENT16, null,
-                { depthAsRenderbuffer : true }
-        );
-        this.backBufferZero = new SglFramebuffer(gl, canvas.clientWidth, canvas.clientHeight,
-                [gl.RGBA], gl.DEPTH_COMPONENT16, null,
-                { depthAsRenderbuffer : true }
-        );
-        this.backBufferOne = new SglFramebuffer(gl, canvas.clientWidth, canvas.clientHeight,
-                [gl.RGBA], gl.DEPTH_COMPONENT16, null,
-                { depthAsRenderbuffer : true }
-        );
-        this.backBufferOrig = new SglFramebuffer(gl, canvas.clientWidth, canvas.clientHeight,
-                [gl.RGBA], gl.DEPTH_COMPONENT16, null,
-                { depthAsRenderbuffer : true }
-        );
-
-        if (!this.pickBuffer.isValid || !this.normalPickBuffer.isValid || !this.backBufferZero || !this.backBufferOne)
-            org.xml3d.debug.logError("Creation of a framebuffer failed");
-
-        //This is the simple fullscreen quad used with the post-processing shaders
-        //For reasons unknown to man it has to be defined here, SpiderGL won't render it
-        //properly otherwise
-        var quadPositions = new Float32Array
-        ([
-            -1.0, -1.0,
-             1.0, -1.0,
-            -1.0,  1.0,
-             1.0,  1.0
-        ]);
-        var texcoord = new Float32Array
-        ([
-            0.0, 0.0,
-             1.0, 0.0,
-            0.0,  1.0,
-             1.0,  1.0
-        ]);
-
-        this.quadMesh = new SglMeshGL(gl);
-        this.quadMesh.addVertexAttribute("position", 2, quadPositions);
-        this.quadMesh.addVertexAttribute("texcoord", 2, texcoord);
-        this.quadMesh.addArrayPrimitives("tristrip", gl.TRIANGLE_STRIP, 0, 4);*/
-        //-------------------
+        //TODO: Buffer setup, move fullscreen quad out of handle
 
         this.gatherPostProcessShaders();
     }
@@ -11068,13 +10990,11 @@ org.xml3d.webgl.createXML3DHandler = (function() {
      *
      */
     XML3DHandler.prototype.dispatchMouseEvent = function(type, button, x, y, event, target) {
-
         // init event
-        var evt = null;
-        if(event === null || event === undefined)
+        if(event === null || evt === undefined)
         {
-            evt = document.createEvent("MouseEvents");
-            evt.initMouseEvent(    type,
+            event = document.createEvent("MouseEvents");
+            event.initMouseEvent(    type,
                             // canBubble, cancelable, view, detail
                                true, true, window, 0,
                                // screenX, screenY, clientX, clientY
@@ -11084,11 +11004,10 @@ org.xml3d.webgl.createXML3DHandler = (function() {
                                // relatedTarget
                                null);
         }
-        else
-            evt = this.copyMouseEvent(event);
 
-        // adapt type to not clash with events spidergl listens to
-        //evt.type = "xml3d" + type;
+        // Copy event to avoid DOM dispatch errors (cannot dispatch event more than once)
+        var evt = this.copyMouseEvent(event);
+        this.initExtendedMouseEvent(evt, x, y);
 
         // find event target
         var tar = null;
@@ -11106,33 +11025,11 @@ org.xml3d.webgl.createXML3DHandler = (function() {
             }
         }
 
-
-        // trigger on[event] attributes
-        var ontype = "on" + type;
-
-        var currentObj = tar;
-        var evtMethod = currentObj.getAttribute(ontype);
-        if (evtMethod && currentObj.evalMethod) {
-            evtMethod = new Function(evtMethod);
-            evtMethod.call(currentObj, evt);
-        }
-
-        for (ev in this.events[type]) {
-            var evl = this.events[type][ev];
-            evl.listener.call(ev.node, evt);
-        }
-
-        //Make sure the event method didn't remove picked object from the tree
-        if (currentObj && currentObj.parentNode)
-        {
-            while(currentObj.parentNode && currentObj.parentNode.nodeName == "group")
-            {
-                currentObj = currentObj.parentNode;
-                evtMethod = currentObj.getAttribute(ontype);
-                if (evtMethod && currentObj.evalMethod) {
-                    evtMethod = new Function(evtMethod);
-                    evtMethod.call(currentObj, evt);
-                }
+        // dispatch an extra copy to the canvas element
+        tar = this.scene.xml3d;
+        for (var i = 0; i < tar.adapters.length; i++) {
+            if (tar.adapters[i].dispatchEvent) {
+                tar.adapters[i].dispatchEvent(evt);
             }
         }
     };
@@ -11175,8 +11072,8 @@ org.xml3d.webgl.createXML3DHandler = (function() {
 
         event.__defineGetter__("normal", function() {
             handler.renderPickedNormals(scene.xml3d.currentPickObj, x, y);
-            var v = scene.xml3d.currentPickNormal.v;
-            return new XML3DVec3(v[0], v[1], v[2]);
+            var v = scene.xml3d.currentPickNormal;
+            return new XML3DVec3(v.x, v.y, v.z);
         });
         event.__defineGetter__("position", function() {return scene.xml3d.currentPickPos;});
     };
@@ -11194,16 +11091,13 @@ org.xml3d.webgl.createXML3DHandler = (function() {
         this.canvasInfo.mouseButtonsDown[evt.button] = false;
         var pos = this.getMousePosition(evt);
 
-        if (this.isDragging)
-        {
+        if (this.isDragging) {
             this.needPickingDraw = true;
             this.isDragging = false;
         }
 
         this.renderPick(pos.x, pos.y);
-
-        this.initExtendedMouseEvent(evt, pos.x, pos.y);
-        this.dispatchMouseEvent("mouseup", evt.button, pos.x, pos.y, evt);
+        this.dispatchMouseEvent("mouseup", event.button, pos.x, pos.y, event);
 
         return false; // don't redraw
     };
@@ -11220,13 +11114,9 @@ org.xml3d.webgl.createXML3DHandler = (function() {
     XML3DHandler.prototype.mouseDown = function(evt) {
         this.canvasInfo.mouseButtonsDown[evt.button] = true;
         var pos = this.getMousePosition(evt);
+        this.renderPick(pos.x, pos.y);
 
-        var scene = this.scene;
-
-        var evt = this.copyMouseEvent(evt);
-        this.initExtendedMouseEvent(evt, pos.x, pos.y);
-
-        this.dispatchMouseEvent("mousedown", evt.button, pos.x, pos.y, evt);
+        this.dispatchMouseEvent("mousedown", event.button, pos.x, pos.y, event);
 
         return false; // don't redraw
     };
@@ -11247,9 +11137,7 @@ org.xml3d.webgl.createXML3DHandler = (function() {
             return;
         }
 
-
-        this.initExtendedMouseEvent(evt, pos.x, pos.y);
-        this.dispatchMouseEvent("click", evt.button, pos.x, pos.y, evt);
+        this.dispatchMouseEvent("click", event.button, pos.x, pos.y, event);
 
         return false; // don't redraw
     };
@@ -11272,7 +11160,6 @@ org.xml3d.webgl.createXML3DHandler = (function() {
         }
 
         //Call any global mousemove methods
-        var evt = this.copyMouseEvent(evt);
         this.dispatchMouseEvent("mousemove", 0, pos.x, pos.y, evt, this.scene.xml3d);
 
         if (!this._mouseMovePickingEnabled)
@@ -11357,7 +11244,19 @@ org.xml3d.webgl.createXML3DHandler = (function() {
      * @return
      */
     XML3DHandler.prototype.addEventListener = function(node, type, listener, useCapture) {
-        if (type in this.events) {
+        if (typeof listener == typeof "") {
+            var parsed = this.parseListenerString(listener);
+            e.listener = new Function("evt", parsed);
+        } else {
+            e.listener = listener;
+        }
+        for (var i = 0; i < node.adapters.length; i++) {
+            if (node.adapters[i].addEventListener) {
+                node.adapters[i].addEventListener(evt);
+            }
+        }
+
+        /*if (type in this.events) {
             var e = new Object();
             e.node = node;
             if (typeof listener == typeof "") {
@@ -11372,7 +11271,7 @@ org.xml3d.webgl.createXML3DHandler = (function() {
             if (type == "mousemove" || type == "mouseout")
                 if (node.name !== "xml3d")
                     this._mouseMovePickingDisabled = false;
-        }
+        }*/
     };
 
 
@@ -11388,21 +11287,27 @@ org.xml3d.webgl.createXML3DHandler = (function() {
         return matchedListener;
     };
     XML3DHandler.prototype.removeEventListener = function(node, type, listener, useCapture) {
-        if (!this.events[type]) {
+        for (var i = 0; i < node.adapters.length; i++) {
+            if (node.adapters[i].removeEventListener) {
+                node.adapters[i].removeEventListener(evt);
+            }
+        }
+        /*if (!this.events[type]) {
             org.xml3d.debug.logError("Could not remove listener for event type "+type);
             return;
-        }
+        }*/
 
         /* Note: below we compare the listener functions by
          * converting them to strings. This works on chrome 12.0.742.100 and firefox 4.0.1.
          * However it might not work on other browsers like IE.
          */
-        for (i=0; i<this.events[type].length; i++) {
+       /* for (i=0; i<this.events[type].length; i++) {
             var stored = this.events[type][i];
             if (stored.node == node
              && String(stored.listener) == String(listener))
                 this.events[type].splice(i,1);
         }
+        */
     };
 
 XML3DHandler.prototype.getRenderedTexture = function (textureSrc) {
@@ -12925,6 +12830,7 @@ org.xml3d.webgl.calculateBoundingBox = function(tArray) {
 org.xml3d.webgl.XML3DCanvasRenderAdapter = function(factory, node) {
     org.xml3d.webgl.RenderAdapter.call(this, factory, node);
     this.canvas = factory.handler.canvas;
+    this.processListeners();
 };
 org.xml3d.webgl.XML3DCanvasRenderAdapter.prototype = new org.xml3d.webgl.RenderAdapter();
 org.xml3d.webgl.XML3DCanvasRenderAdapter.prototype.constructor = org.xml3d.webgl.XML3DCanvasRenderAdapter;
@@ -12940,12 +12846,23 @@ org.xml3d.webgl.XML3DCanvasRenderAdapter.prototype.notifyChanged = function(evt)
     }
 };
 
-org.xml3d.webgl.XML3DCanvasRenderAdapter.prototype.addEventListener = function(type, listener, useCapture) {
-    this.factory.handler.addEventListener(this.node, type, listener, useCapture);
+org.xml3d.webgl.XML3DCanvasRenderAdapter.prototype.processListeners  = function() {
+    var attributes = this.node.attributes;
+    for (var index in attributes) {
+        var att = attributes[index];
+        if (!att.name)
+            continue;
+
+        var type = att.name;
+        if (type.match(/onmouse/) || type == "onclick") {
+            var eventType = type.substring(2);
+            this.node.addEventListener(eventType, new Function(att.value), false);
+        }
+    }
 };
 
-org.xml3d.webgl.XML3DCanvasRenderAdapter.prototype.removeEventListener = function(type, listener, useCapture) {
-    this.factory.handler.removeEventListener(this.node, type, listener, useCapture);
+org.xml3d.webgl.XML3DCanvasRenderAdapter.prototype.dispatchEvent = function(evt) {
+    var res = this.node.dispatchEvent(evt);
 };
 
 org.xml3d.webgl.XML3DCanvasRenderAdapter.prototype.getElementByPoint = function(x, y, hitPoint, hitNormal) {
@@ -13506,7 +13423,7 @@ org.xml3d.webgl.XML3DMeshRenderAdapter = function(factory, node) {
     this.isValid = false;
     this.meshIsValid = false;
     this._bbox = null;
-    this._eventListeners = [];
+    this.processListeners();
     this.shaderHandler = factory.renderer.shaderHandler;
 
     this.dataAdapter = factory.renderer.dataFactory.getAdapter(this.node);
@@ -13527,6 +13444,21 @@ org.xml3d.webgl.XML3DMeshRenderAdapter = function(factory, node) {
 org.xml3d.webgl.XML3DMeshRenderAdapter.prototype = new org.xml3d.webgl.RenderAdapter();
 org.xml3d.webgl.XML3DMeshRenderAdapter.prototype.constructor = org.xml3d.webgl.XML3DMeshRenderAdapter;
 
+org.xml3d.webgl.XML3DMeshRenderAdapter.prototype.processListeners  = function() {
+    var attributes = this.node.attributes;
+    for (var index in attributes) {
+        var att = attributes[index];
+        if (!att.name)
+            continue;
+
+        var type = att.name;
+        if (type.match(/onmouse/) || type == "onclick") {
+            var eventType = type.substring(2);
+            this.node.addEventListener(eventType,  new Function("evt", att.value), false);
+        }
+    }
+};
+
 org.xml3d.webgl.XML3DMeshRenderAdapter.prototype.collectDrawableObjects = function(
         transform, opaqueObjects, transparenObjects, outLights, shader, visible) {
     if (this.isValid && this.meshIsValid) {
@@ -13543,33 +13475,8 @@ org.xml3d.webgl.XML3DMeshRenderAdapter.prototype.collectDrawableObjects = functi
     }
 };
 
-org.xml3d.webgl.XML3DMeshRenderAdapter.prototype.addEventListener = function(itype, ilistener, icapture) {
-    var evl = {
-        type : itype,
-        listener : ilistener,
-        capture : icapture
-    };
-    this._eventListeners.push(evl);
-};
-
-org.xml3d.webgl.XML3DMeshRenderAdapter.prototype.removeEventListener = function(itype, ilistener, icapture) {
-    for (var i=0; i < this._eventListeners.length; i++) {
-        var evl = this._eventListeners[i];
-        if (evl.type == itype && evl.listener == ilistener) {
-            this._eventListeners.splice(i, 1);
-            i--;
-        }
-    }
-};
-
 org.xml3d.webgl.XML3DMeshRenderAdapter.prototype.dispatchEvent = function(evt) {
-    for (var i=0; i<this._eventListeners.length; i++) {
-        var evl = this._eventListeners[i];
-        if (evl.type == evt.type) {
-            evl.listener.call(this.node, evt);
-        }
-    }
-
+    var res = this.node.dispatchEvent(evt);
 };
 
 org.xml3d.webgl.XML3DMeshRenderAdapter.prototype.getGLTypeFromString = function(gl, typeName) {
@@ -14043,6 +13950,7 @@ org.xml3d.webgl.XML3DMeshRenderAdapter.prototype.applyXFlow = function(shader, p
 org.xml3d.webgl.XML3DGroupRenderAdapter = function(factory, node) {
     org.xml3d.webgl.RenderAdapter.call(this, factory, node);
     this.listeners = new Array();
+    this.processListeners();
     this.parentTransform = null;
     this._parentShader = null;
     this._eventListeners = [];
@@ -14067,37 +13975,28 @@ org.xml3d.webgl.XML3DGroupRenderAdapter.prototype.applyTransformMatrix = functio
     return ret;
 };
 
+org.xml3d.webgl.XML3DGroupRenderAdapter.prototype.processListeners  = function() {
+    var attributes = this.node.attributes;
+    for (var index in attributes) {
+        var att = attributes[index];
+        if (!att.name)
+            continue;
+
+        var type = att.name;
+        if (type.match(/onmouse/) || type == "onclick") {
+            var eventType = type.substring(2);
+            this.node.addEventListener(eventType, new Function("evt", att.value), false);
+        }
+    }
+};
+
 org.xml3d.webgl.XML3DGroupRenderAdapter.prototype.evalOnclick = function(evtMethod) {
     if (evtMethod)
         eval(evtMethod);
 };
 
-org.xml3d.webgl.XML3DMeshRenderAdapter.prototype.addEventListener = function(itype, ilistener, icapture) {
-    var evl = {
-        type : itype,
-        listener : ilistener,
-        capture : icapture
-    };
-    this._eventListeners.push(evl);
-};
-
-org.xml3d.webgl.XML3DMeshRenderAdapter.prototype.removeEventListener = function(itype, ilistener, icapture) {
-    for (var i=0; i < this._eventListeners.length; i++) {
-        var evl = this._eventListeners[i];
-        if (evl.type == itype && evl.listener == ilistener) {
-            this._eventListeners.splice(i, 1);
-            i--;
-        }
-    }
-};
-
-org.xml3d.webgl.XML3DMeshRenderAdapter.prototype.dispatchEvent = function(evt) {
-    for (var i=0; i<this._eventListeners.length; i++) {
-        var evl = this._eventListeners[i];
-        if (evl.type == evt.type) {
-            evl.listener.call(this.node, evt);
-        }
-    }
+org.xml3d.webgl.XML3DGroupRenderAdapter.prototype.dispatchEvent = function(evt) {
+    var res = this.node.dispatchEvent(evt);
 };
 
 org.xml3d.webgl.XML3DGroupRenderAdapter.prototype.notifyChanged = function(evt) {
