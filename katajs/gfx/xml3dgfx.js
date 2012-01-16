@@ -766,7 +766,7 @@ Kata.require([
             "data": ["src"]
         };
 
-        // refernce css property database
+        // reference css property database
         var refCSSPropDB = {
             "group": ["transform", "shader"]
         };
@@ -794,7 +794,7 @@ Kata.require([
             for (var i in attrs)
             {
                 var value = element.style[attrs[i]];
-                if (value !== undefined && value.substring(0, 4) == "url(")
+                if (value !== undefined && value.length > 4 && value.substring(0, 4) == "url(")
                      element.style[attrs[i]] = "url(" + value.substring(4, value.length - 1) + suffix + ")";
             }
         }
