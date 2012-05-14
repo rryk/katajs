@@ -1,4 +1,4 @@
-/*  Location.js Functions to bring together space and time to reveal the logical 3space position of an object
+/*  Location.js Functions to bring together space and time to reveal the logical 3space position of an objectonte
  *  o3dgfx.js
  *
  *  Copyright (c) 2010, Daniel Reiter Horn
@@ -29,20 +29,38 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
-Kata.require([], function() {
+"use strict";
 
 /**
+ * @typedef{!Array|!ArrayBuffer|!TypedArray} 
+ */
+var Kata_Vector;
+/**
+ * @typedef{{scale:!Kata_Vector,scaleTime:number,pos:!Kata_Vector,posTime:number,orient:!Kata_Vector,orientTime:number,vel:!Kata_Vector,rotaxis:!Kata_Vector,rotvel:number}}
+ */
+var Kata_Location;
+/**
+ * @typedef{{scale:!Kata_Vector,time:number,pos:!Kata_Vector,orient:!Kata_Vector,vel:!Kata_Vector,rotaxis:!Kata_Vector,rotvel:number}}
+ */
+var Kata_LocationMsg;
+
+/**
+ * @typedef {number}
+ */
+var Kata_Date;
+
+Kata.require([], function() {
+/**
  * Returns the identity location updated at the current time
- * @return {!Location} an identity object with time set to newDate
+ * @return {Kata_Location} an identity object with time set to newDate
  */
 Kata.LocationIdentityNow=function() {
-    return Kata.LocationIdentity(new Date());
+    return Kata.LocationIdentity(Date.now());
 };
 /**
  * Returns the identity location updated passed-in time
- * @param {!Date} time the time which should be filled in to the location object 
- * @return {!Location} an identity object with time set to time
+ * @param {Kata_Date} time the time which should be filled in to the location object 
+ * @return {Kata_Location} an identity object with time set to time
  */
 Kata.LocationIdentity=function(time){
     return {
@@ -59,8 +77,8 @@ Kata.LocationIdentity=function(time){
 };
 /**
  * Computes the number of seconds between 2 times as a floating point number
- * @param {!Date} newTime the time farthest in the future to subtract
- * @param {!Date} oldTime the time farthest in the past to take the difference of
+ * @param {Kata_Date} newTime the time farthest in the future to subtract
+ * @param {Kata_Date} oldTime the time farthest in the past to take the difference of
  * @return {number} number of seconds between the two times
  */
 Kata.deltaTime=function(newTime,oldTime) {
@@ -68,10 +86,10 @@ Kata.deltaTime=function(newTime,oldTime) {
 }
 /**
  * Takes a coordinate, a velocity and a time and extrapolates linearly from the starting location
- * @param {Array} a the starting vector at deltaTime=0
- * @param {Array} adel the velocity on the 3vec a
+ * @param {Kata_Vector} a the starting vector at deltaTime=0
+ * @param {Kata_Vector} adel the velocity on the 3vec a
  * @param {number} deltaTime the number of seconds that have elapsed since the coordinate was correct
- * @return {Array} the extrapolated vector
+ * @return {Kata_Vector} the extrapolated vector
  */
 Kata._helperLocationExtrapolate3vec=function(a,adel,deltaTime){
     return [a[0]+adel[0]*deltaTime,
@@ -80,9 +98,9 @@ Kata._helperLocationExtrapolate3vec=function(a,adel,deltaTime){
 };
 /**
  * Takes an axis and an angle and makes a quaternion out of them with [x,y,z,w] as the coordinate layout
- * @param {Array} aaxis axis 
- * @param {Array} aangle the angle in radians
- * @return {Array} the quaternion
+ * @param {Kata_Vector} aaxis axis 
+ * @param {number} aangle the angle in radians
+ * @return {Kata_Vector} the quaternion
  */
 Kata._helperQuatFromAxisAngle=function(aaxis,aangle) {
     var sinHalf=Math.sin(aangle/2.0);
@@ -92,11 +110,11 @@ Kata._helperQuatFromAxisAngle=function(aaxis,aangle) {
 
 /**
  * Extrapolates the quaternion using the velocity and axis deltaTime seconds into the future
- * @param {Array} a starting quaternion
+ * @param {Kata_Vector} a starting quaternion
  * @param {number} avel the rotational speed in radians per second rotating around aaxis
- * @param {Array} aaxis the rotational axis around which a rotates
+ * @param {Kata_Vector} aaxis the rotational axis around which a rotates
  * @param {number} deltaTime the number of seconds since the starting quaternion was measured
- * @return {Array} The quaternion extrapolated deltaTime seconds from a
+ * @return {Kata_Vector} The quaternion extrapolated deltaTime seconds from a
  */
 Kata.extrapolateQuaternion=function(a,avel,aaxis,deltaTime){
     var aangle=avel*deltaTime;
@@ -121,14 +139,14 @@ Kata.extrapolateQuaternion=function(a,avel,aaxis,deltaTime){
  * If the time is after the first, newer 3vec (a), it extrapolates the 3vec 
  * If the time is before the second, older 3vec (b) it uses the second, older 3vec
  * otherwise it does a weighted interpolation of the 3vecs
- * @param {Array} a the ending quaternion to interpolate 
- * @param {number} avel the velocity a will move
- * @param {Date} atime the sample time at which the final 3vec was measured to be at a
- * @param {Array} b starting, older 3vec to interpolate
- * @param {number} bvel the velocity b moved at
- * @param {Date} btime the sample time at which the 3vec was measured to be at b
- * @param {Date} curTime the current date to interpolate at
- * @return {Array} The quaternion interpolated between a and b at curtime
+ * @param {Kata_Vector} a the ending quaternion to interpolate 
+ * @param {Kata_Vector} adel the velocity a will move
+ * @param {Kata_Date} atime the sample time at which the final 3vec was measured to be at a
+ * @param {Kata_Vector} b starting, older 3vec to interpolate
+ * @param {Kata_Vector} bdel the velocity b moved at
+ * @param {Kata_Date} btime the sample time at which the 3vec was measured to be at b
+ * @param {Kata_Date} curtime the current date to interpolate at
+ * @return {Kata_Vector} The quaternion interpolated between a and b at curtime
  */
 Kata._helperLocationInterpolate3vec=function(a,adel,atime,b,bdel,btime,curtime) {
     var secondsPassed=Kata.deltaTime(curtime,atime);
@@ -155,14 +173,12 @@ Kata._helperLocationInterpolate3vec=function(a,adel,atime,b,bdel,btime,curtime) 
  * If the time is after the first, newer 3vec (a), it extrapolates the 3vec 
  * If the time is before the second, older 3vec (b) it uses the second, older 3vec
  * otherwise it does a weighted interpolation of the 3vecs
- * @param {Array} a the ending quaternion to interpolate 
- * @param {number} avel the velocity a will move
- * @param {Date} atime the sample time at which the final 3vec was measured to be at a
- * @param {Array} b starting, older 3vec to interpolate
- * @param {number} bvel the velocity b moved at
- * @param {Date} btime the sample time at which the 3vec was measured to be at b
- * @param {Date} curTime the current date to interpolate at
- * @return {Array} The quaternion interpolated between a and b at curtime
+ * @param {Kata_Vector} a the ending quaternion to interpolate 
+ * @param {Kata_Date} atime the sample time at which the final 3vec was measured to be at a
+ * @param {Kata_Vector} b starting, older 3vec to interpolate
+ * @param {Kata_Date} btime the sample time at which the 3vec was measured to be at b
+ * @param {Kata_Date} curtime the current date to interpolate at
+ * @return {Kata_Vector} The quaternion interpolated between a and b at curtime
  */
 Kata._helperLocationInterpolateNoVel4vec=function(a,atime,b,btime,curtime) {
     var secondsPassed=Kata.deltaTime(curtime,atime);
@@ -190,16 +206,16 @@ Kata._helperLocationInterpolateNoVel4vec=function(a,atime,b,btime,curtime) {
  * If the time is after the first, newer quaternion (a), it extrapolates the quaternion 
  * If the time is before the second, older quaternion (b) it uses the second quaternion
  * otherwise it does a weighted interpolation of the quaternions
- * @param {Array} a the ending quaternion to interpolate 
+ * @param {Kata_Vector} a the ending quaternion to interpolate 
  * @param {number} avel the rotational speed in radians per second a rotates around aaxis
- * @param {Array} aaxis the rotational axis around which a rotates
- * @param {Array} atime the sample time at which the final quaternion was measured to be at a
- * @param {Date} b starting quaternion to interpolate
+ * @param {Kata_Vector} aaxis the rotational axis around which a rotates
+ * @param {Kata_Date} atime the sample time at which the final quaternion was measured to be at a
+ * @param {Kata_Vector} b starting quaternion to interpolate
  * @param {number} bvel the rotational speed in radians per second b rotates around baxis
- * @param {Array} baxis the rotational axis around which b rotates
- * @param {Date} btime the sample time at which the beginning quaternion was measured to be at b
- * @param {Date} curTime the current date to interpolate at
- * @return {Array} The quaternion interpolated between a and b at curtime
+ * @param {Kata_Vector} baxis the rotational axis around which b rotates
+ * @param {Kata_Date} btime the sample time at which the beginning quaternion was measured to be at b
+ * @param {Kata_Date} curtime the current date to interpolate at
+ * @return {Kata_Vector} The quaternion interpolated between a and b at curtime
  */
 Kata._helperLocationInterpolateQuaternion=function(a,avel,aaxis,atime,b,bvel,baxis,btime,curtime) {
     var secondsPassed=Kata.deltaTime(curtime,atime);
@@ -230,10 +246,10 @@ Kata._helperLocationInterpolateQuaternion=function(a,avel,aaxis,atime,b,bvel,bax
 
 /**
  * interpolates between 2 locations at a time probably between the two, otherwise the newer one is extrapolated
- * @param {!Location} location the newest location update
- * @param {!Location} prevLoaction the second newest location update
- * @param {Date} time the time to extrapolate to
- * @returns {!Location} an param-by-param interpolation of the locations if the time is between the two times for that property, otherwise an extrapolation of the newest location update to the future
+ * @param {Kata_Location} location the newest location update
+ * @param {Kata_Location} prevLocation the second newest location update
+ * @param {Kata_Date} time the time to extrapolate to
+ * @returns {Kata_Location} an param-by-param interpolation of the locations if the time is between the two times for that property, otherwise an extrapolation of the newest location update to the future
  */
 Kata.LocationInterpolate=function(location,prevLocation,time) {
     return {
@@ -257,12 +273,12 @@ Kata.LocationInterpolate=function(location,prevLocation,time) {
 
 /**
  * interpolates between 2 locations where 3 times are passed in and used to separately interpolate each field
- * @param {!Location} location the newest location update
- * @param {!Location} prevLoaction the second newest location update
- * @param {Date} posTime the time to extrapolate to for positions
- * @param {Date} orientTime the time to extrapolate to for orientations
- * @param {Date} scaleTime the time to extrapolate to for scale
- * @returns {!Location} an param-by-param interpolation of the locations if the time is between the two times for that property, otherwise an extrapolation of the newest location update to the future
+ * @param {Kata_Location} location the newest location update
+ * @param {Kata_Location} prevLocation the second newest location update
+ * @param {Kata_Date} posTime the time to extrapolate to for positions
+ * @param {Kata_Date} orientTime the time to extrapolate to for orientations
+ * @param {Kata_Date} scaleTime the time to extrapolate to for scale
+ * @returns {Kata_Location} an param-by-param interpolation of the locations if the time is between the two times for that property, otherwise an extrapolation of the newest location update to the future
  */
 Kata.LocationTriTimeInterpolate=function(location,prevLocation,posTime,orientTime,scaleTime) {
     return {
@@ -286,9 +302,9 @@ Kata.LocationTriTimeInterpolate=function(location,prevLocation,posTime,orientTim
 
 /**
  * Extrapolates a location to a future time so that it may be interpolated
- * @param {!Location} location the latest location sample
- * @param {Date} time the current time for which to extrapolate over
- * @returns {!Location} a Location class that has the current time set to time but the same velocity and rotation
+ * @param {Kata_Location} location the latest location sample
+ * @param {Kata_Date} time the current time for which to extrapolate over
+ * @returns {Kata_Location} a Location class that has the current time set to time but the same velocity and rotation
  */
 Kata.LocationExtrapolate=function(location,time) {
     return {
@@ -303,7 +319,9 @@ Kata.LocationExtrapolate=function(location,time) {
         vel:location.vel
     };
 };
-Kata.LocationCopy = function(destination, source) {
+/*
+COMMENTED: shouldn't have the opposite convention as the function below it: if we use this function we should fix the sources
+Kata.LocationCopy = function(source, destination) {
     if (source.scale!==undefined){
         destination.scaleTime=source.scaleTime!==undefined?source.scaleTime:source.time;
         destination.scale=source.scale.slice(0);
@@ -324,25 +342,25 @@ Kata.LocationCopy = function(destination, source) {
         destination.vel=source.vel.slice(0);
     }        
 };
-
+*/
 Kata.LocationCopyUnifyTime= function(msg, destination) {
     if (msg.time!==undefined) {
         destination.time=msg.time;
         if (msg.scale!==undefined){
-            destination.scale=msg.scale.slice();
+            destination.scale=Kata.Vec4Dup(msg.scale);
         }
         if (msg.pos!==undefined){
-                destination.pos=msg.pos.slice();
+            destination.pos=Kata.Vec3Dup(msg.pos);
         }
         if (msg.orient!==undefined) {            
-            destination.orient=msg.orient.slice();
+            destination.orient=new Kata.Quaternion(msg.orient);
         }
         if (msg.rotvel!==undefined && msg.rotaxis!==undefined) {
             destination.rotvel=msg.rotvel;
-            destination.rotaxis=msg.rotaxis.slice();
+            destination.rotaxis=Kata.Vec3Dup(msg.rotaxis);
         }
         if (msg.vel!==undefined){
-            destination.vel=msg.vel.slice();
+            destination.vel=Kata.Vec3Dup(msg.vel);
         }        
     }else{
         var t=msg.scaleTime;
@@ -351,7 +369,7 @@ Kata.LocationCopyUnifyTime= function(msg, destination) {
         if (t===undefined||msg.orientTime>=t)
             t=msg.orientTime;
         if (msg.scale!==undefined){
-            destination.scale=msg.scale.slice(0);
+            destination.scale=Kata.Vec4Dup(msg.scale);
         }
         if (msg.pos!==undefined){
             if (msg.vel&&msg.posTime) {
@@ -360,7 +378,7 @@ Kata.LocationCopyUnifyTime= function(msg, destination) {
                                                                     Kata.deltaTime(t,
                                                                               msg.posTime));                
             }else {
-                destination.pos=msg.pos.slice();
+                destination.pos=Kata.Vec3Dup(msg.pos);
             }
         }
         if (msg.orient!==undefined){
@@ -372,15 +390,15 @@ Kata.LocationCopyUnifyTime= function(msg, destination) {
                                                                Kata.deltaTime(t,
                                                                          msg.orientTime));
             }else {
-                destination.orient=msg.orient.slice();
+                destination.orient=new Kata.Quaternion(msg.orient);
             }
         }
         if (msg.rotvel !== undefined && msg.rotaxis !== undefined) {
             destination.rotvel=msg.rotvel;
-            destination.rotaxis=msg.rotaxis.slice();
+            destination.rotaxis=Kata.Vec3Dup(msg.rotaxis);
         }
         if (msg.vel!==undefined){
-            destination.vel=msg.vel.slice();
+            destination.vel=Kata.Vec3Dup(msg.vel);
         }
         destination.time=t;
     }
@@ -390,11 +408,11 @@ Kata.LocationCopyUnifyTime= function(msg, destination) {
  * returns a new location that has the default properties where the msg does not specify the values
  * and uses the messages values where they are specified
  * @param msg the network message being received
- * @returns {!Location} a Location class with curLocation augmented with the msg fields that exist
+ * @returns {Kata_Location} a Location class with curLocation augmented with the msg fields that exist
  */ 
 Kata.LocationSet=function(msg) {
     if (msg.time==undefined)
-        msg.time=new Date();
+        msg.time=Date.now();
     if (msg.scale==undefined)
         msg.scale=[0,0,0,1];
     if (msg.vel==undefined)
@@ -427,9 +445,9 @@ Kata.LocationSet=function(msg) {
  * is newer within the accuracy of the javascript timer. 
  * 
  * @param msg the network message being received
- * @param {!Location} curLocation the currently known latest update (modified with prevLocation items that have not changed in new update)
- * @param {!Location} prevLocation the update before the current update
- * @returns {!Location} a Location class with curLocation augmented with the msg fields that exist
+ * @param {Kata_Location} curLocation the currently known latest update (modified with prevLocation items that have not changed in new update)
+ * @param {Kata_Location} prevLocation the update before the current update
+ * @returns {Kata_Location} a Location class with curLocation augmented with the msg fields that exist
  */ 
 Kata.LocationUpdate=function(msg,curLocation,prevLocation, curDate) {
     if (!prevLocation)
@@ -458,9 +476,10 @@ Kata.LocationUpdate=function(msg,curLocation,prevLocation, curDate) {
 
             retval.pos=Kata._helperLocationExtrapolate3vec(curLocation.pos,curLocation.vel,Kata.deltaTime(msg.time,curLocation.posTime));
             retval.posTime=msg.time;
-        }else if (msg.pos && msg.time) {
+        }/*else if (msg.pos && msg.time) {
+            
             //Kata.error("DROPPING UPDATE "+JSON.stringify(msg)+ " because "+msg.time+" is not greater than "+curLocation.posTime.getTime());
-        }
+        }*/
     }
     if (msg.vel && msg.time && msg.time >= curLocation.posTime) {
         retval.vel=msg.vel;
@@ -504,7 +523,7 @@ Kata.LocationUpdate=function(msg,curLocation,prevLocation, curDate) {
 /**
  * Takes a current location and updates it with all fields and timestamps that have changed
  * @param msg the network message being received
- * @param {!Location} curLocation the currently known latest update (modified with prevLocation items that have not changed in new update)
+ * @param {Kata_Location} curLocation the currently known latest update (modified with prevLocation items that have not changed in new update)
  */ 
 Kata.LocationReset=function(msg,curLocation) {
     if (msg.scale!==undefined) {
@@ -530,9 +549,9 @@ Kata.LocationReset=function(msg,curLocation) {
 
 /**
  * Multiplies two quaternions.
- * @param {!o3djs.quaternions.Quaternion} a Operand quaternion.
- * @param {!o3djs.quaternions.Quaternion} b Operand quaternion.
- * @return {!o3djs.quaternions.Quaternion} The quaternion product a * b.
+ * @param {!Kata_Vector} a Operand quaternion.
+ * @param {!Kata_Vector} b Operand quaternion.
+ * @return {!Kata_Vector} The quaternion product a * b.
  */
 Kata.QuaternionMulQuaternion=function(a, b) {
   var aX = a[0];
@@ -557,8 +576,8 @@ Kata.QuaternionMulQuaternion=function(a, b) {
  * a quaternion r means to express that vector as a quaternion q by letting
  * q = [v[0], v[1], v[2], 0] and then obtain the rotated vector by evaluating
  * the expression (r * q) / r.
- * @param {!o3djs.quaternions.Quaternion} q The quaternion.
- * @return {!o3djs.math.Matrix4} A 4-by-4 rotation matrix.
+ * @param {!Kata_Vector} q The quaternion.
+ * @return {!Kata_Vector} A 4-by-4 rotation matrix.
  */
 Kata.QuaternionToRotation=function (q) {
   var qX = q[0];
@@ -597,6 +616,12 @@ Kata.QuaternionToRotation=function (q) {
      (qWqW - qXqX - qYqY + qZqZ) / d, 0],
     [0, 0, 0, 1]];
 };
+Kata.Vec3Dup=function(a) {
+    return [a[0],a[1],a[2]];
+}
+Kata.Vec4Dup=function(a) {
+    return [a[0],a[1],a[2],a[3]];
+}
 Kata.Vec3Cross=function(a,b) {
     return [a[1]*b[2]-a[2]*b[1],
             a[2]*b[0]-a[0]*b[2],
@@ -611,6 +636,9 @@ Kata.Vec3Sub=function(a,b) {
 Kata.Vec3Scale=function(a,b) {
     return [a[0]*b,a[1]*b,a[2]*b];
 };
+Kata.Vec4Scale=function(a,b) {
+    return [a[0]*b,a[1]*b,a[2]*b,a[3]*b];
+};
 Kata.Vec3Rotate=function(a,v0,v1,v2) {
     return [a[0]*v0[0]+a[1]*v1[0]+a[2]*v2[0],
             a[0]*v0[1]+a[1]*v1[1]+a[2]*v2[1],
@@ -620,10 +648,10 @@ Kata.Vec3Rotate=function(a,v0,v1,v2) {
  * LocationCompose takes in a location and a prev and cur position for a parent node
  * and turns it into a single location that represents the current transformation at 
  * the time snapshots listed in loc
- * @param {!Location} loc the location to be combined with its parents
- * @param {!Location} prevParentLoc the parent's previous location
- * @param {!Location} curParentLoc the parent's current location
- * @returns{!Location} loc, combined with the appropriate interpolation of cur and prevParentLoc
+ * @param {Kata_Location} loc the location to be combined with its parents
+ * @param {Kata_Location} prevParentLoc the parent's previous location
+ * @param {Kata_Location} curParentLoc the parent's current location
+ * @returns{Kata_Location} loc, combined with the appropriate interpolation of cur and prevParentLoc
  */
 Kata.LocationCompose=function(loc, prevParentLoc, curParentLoc) {
     var parentLoc=Kata.LocationTriTimeInterpolate(curParentLoc,prevParentLoc,loc.posTime,loc.orientTime,loc.scaleTime);
@@ -635,11 +663,11 @@ Kata.LocationCompose=function(loc, prevParentLoc, curParentLoc) {
                                          parentLoc.vel),
                                  Kata.Vec3Rotate(loc.vel,rotation[0],rotation[1],rotation[2]));
     var topLevelAxis=Kata.Vec3Rotate(loc.rotaxis,rotation[0],rotation[1],rotation[2]);
-    var topLevelPos=Kata.Vec3Add(Vec3Rotate(loc.pos,rotation[0],rotation[1],rotation[2]),
+    var topLevelPos=Kata.Vec3Add(Kata.Vec3Rotate(loc.pos,rotation[0],rotation[1],rotation[2]),
                             parentLoc.pos);
     
     var topLevelOrient=Kata.QuaternionMulQuaternion(parentLoc.orient,loc.orient);
-    var topLevelScale=[loc.scale[0],loc.scale[1],loc.scale[2],loc.scale[3]*parentloc.scale[3]];
+    var topLevelScale=[loc.scale[0],loc.scale[1],loc.scale[2],loc.scale[3]*parentLoc.scale[3]];
     return {pos:topLevelPos,
             orient:topLevelOrient,
             scale:topLevelScale,
@@ -666,10 +694,10 @@ Kata.QuaternionInverse=function(q) {
  * the time snapshots listed in loc as a child transformation of the ParentLocs 
  * so that it would remain at the same position that it was as a child of prev and 
  * curParentLoc at its respective timestamps
- * @param {!Location} loc the location to be combined with its parents
- * @param {!Location} prevParentLoc the parent's previous location
- * @param {!Location} curParentLoc the parent's current location
- * @returns{!Location} loc, combined with the appropriate interpolation of cur and prevParentLoc
+ * @param {Kata_Location} loc the location to be combined with its parents
+ * @param {Kata_Location} prevParentLoc the parent's previous location
+ * @param {Kata_Location} curParentLoc the parent's current location
+ * @returns{Kata_Location} loc, combined with the appropriate interpolation of cur and prevParentLoc
  */
 Kata.LocationInverseCompose=function(loc, prevParentLoc, curParentLoc) {
     var parentLoc=Kata.LocationTriTimeInterpolate(curParentLoc,prevParentLoc,loc.posTime,loc.orientTime,loc.scaleTime);
@@ -701,10 +729,10 @@ Kata.LocationInverseCompose=function(loc, prevParentLoc, curParentLoc) {
 };
 /**
  * takes the loc that is based off of the oldNode and places it as a child of newNode
- * @param {!Location} loc the location of the object relative to oldNode
- * @param {Array} oldNodes the previous array of pairs of [prev,cur] Location classes that represent the object with lowest element being farthest from the root of the heirarchy of transforms
- * @param {Array} newNodes the current array of pairs of [prev,cur] Location classes that represent the object with the first element being farthest from the root of the heirarchy of transforms
- * @returns {!Location} a Location class that has been composed with oldNode and then the inverse of newNode
+ * @param {Kata_Location} loc the location of the object relative to oldNode
+ * @param {!Array.<!Kata_Location>} oldNode the previous array of pairs of [prev,cur] Location classes that represent the object with lowest element being farthest from the root of the heirarchy of transforms
+ * @param {!Array.<!Kata_Location>} newNode the current array of pairs of [prev,cur] Location classes that represent the object with the first element being farthest from the root of the heirarchy of transforms
+ * @returns {Kata_Location} a Location class that has been composed with oldNode and then the inverse of newNode
  */ 
 Kata.LocationReparent=function(loc,oldNode,newNode){
     var i;

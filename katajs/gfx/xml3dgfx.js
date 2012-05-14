@@ -161,7 +161,7 @@ Kata.require([
             console.error("Cannot add a mesh. Object " + msg.id + " does not exist.");
         else
             this.objects[msg.id].initMesh(
-                msg.mesh,
+                msg.mesh.mesh,
                 msg.type === undefined ? "xml3d" : msg.type
             );
     };

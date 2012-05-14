@@ -8,10 +8,13 @@ if (typeof(console) == "undefined") {
 
 Kata.require([
 ], function() {
-    var currentTime = (new Date()).getTime();
+    'use strict';
+    var currentTime = Date.now();
     var scheduled=false;
     Kata.scheduleNowUpdates=function(time){
+        'use strict';
         function replay() {
+            'use strict';
             setTimeout(replay,time);
             Kata.updateNow();
         }
@@ -23,11 +26,13 @@ Kata.require([
      * Right now does not distinguish between spaces--future may have to lookup the space class
      */
     Kata.now = function(space) {
+        'use strict';
         return scheduled?currentTime:Kata.updateNow();
     };
     Kata.updateNow = function (newTime) {
+        'use strict';
         if (newTime===undefined)
-            currentTime=(new Date()).getTime();
+            currentTime=Date.now();
         else
             currentTime = newTime;
         return currentTime;

@@ -29,7 +29,7 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
+"use strict";
 
 Kata.require([
     'katajs/oh/Script.js',
@@ -302,7 +302,7 @@ Kata.require([
          }
          var space=presence.space();
          var len = this.mRenderableRemotePresences.length;
-         var msg = unrenderRemotePresence(presence,presence);
+         var msg = this.unrenderRemotePresence(presence,presence);
          this._sendHostedObjectMessage(msg);
          var key = Kata.Script.remotePresenceKey(presence.space(), presence.id());
          delete this.mRemotePresences[key];

@@ -29,7 +29,7 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
+"use strict";
 
 Kata.require([
     'katajs/core/Channel.js'
@@ -39,8 +39,9 @@ Kata.require([
       * listeners.
       *
       * @constructor
+      * @extends {Kata.Channel}
       * @param {Kata.Channel} channel the channel which feeds this one
-      * @param {function(Kata.Channel, (string|object))} filter the filter to apply. Takes the same
+      * @param {function(Kata.Channel, (string|Object))} filter the filter to apply. Takes the same
       * form as a listener but returns a boolean indicating whether to
       * deliver to listeners
       */

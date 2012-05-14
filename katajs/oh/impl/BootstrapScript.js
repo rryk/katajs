@@ -29,15 +29,15 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
+"use strict";
 
 Kata.require([
     'katajs/core/FilterChannel.js',
     'katajs/core/MessageDispatcher.js',
-    'katajs/oh/Presence.js',
     'katajs/core/URL.js',
     'katajs/oh/impl/ScriptProtocol.js'
 ], function() {
+    self["Kata"] = Kata;
      /** Bootstraps an object's script, enabling it to communicate
       *  with the HostedObject it was instantiated for.  This also
       *  sets up creation/destruction of Presences and makes sure they
@@ -53,31 +53,23 @@ Kata.require([
       * @param {Array} args additional arguments passed by the creating
       * object
       */
-     Kata.BootstrapScript = function(channel,args) {
+     Kata.BootstrapScript = Kata["BootstrapScript"] = function(channel,args) {
          this.mChannel = channel;
 
-         // Setup dispatcher and register handlers
-         var handlers = {};
+         // Setup dispatcher and register
          var msgTypes = Kata.ScriptProtocol.ToScript.Types;
-         handlers[msgTypes.Connected] = Kata.bind(this._handleConnected, this);
-         handlers[msgTypes.ConnectionFailed] = Kata.bind(this._handleConnectFailed, this);
-         handlers[msgTypes.Disconnected] = Kata.bind(this._handleDisconnect, this);
-         this.mMessageDispatcher = new Kata.MessageDispatcher(handlers);
-
-         this.mPresences = {};
-
-         // Create a filtered channel, so we get first crack at any messages
-         var filtered_channel = new Kata.FilterChannel(channel, Kata.bind(this.receiveMessage, this));
+         this.mLoadingListener=Kata.bind(this.receiveMessage, this);
+         channel.registerListener(this.mLoadingListener);
 
          this.mPendingScriptLoad = [];
          this.mScriptLoading = true;
-
+         
          var thus = this;
 
          Kata.require(
              [args.realScript],
              function() {
-                 thus._onFinishedLoading(filtered_channel, args);
+                 thus._onFinishedLoading(channel, args);
              });
 
      };
@@ -97,36 +89,20 @@ Kata.require([
          }
          this.mScript = new cls(filtered_channel, args.realArgs);
          for (var i = 0; i < this.mPendingScriptLoad.length; i++) {
-             this.receiveMessage(this.mPendingScriptLoad[i][0], this.mPendingScriptLoad[i][1]);
+             this.mScript._handleHostedObjectMessage(this.mPendingScriptLoad[i][0], this.mPendingScriptLoad[i][1]);
          }
+         var ret=this.mChannel.unregisterListener(this.mLoadingListener);
+         if (!ret) {
+             console.log("failed to unload listener: "+this.mLoadingListener);
+         }
+         delete this.mLoadingListener;
      };
 
      Kata.BootstrapScript.prototype.receiveMessage = function(channel, msg) {
          if (this.mScriptLoading) {
              this.mPendingScriptLoad.push([channel, msg]);
-             return true; // FIXME: How do we know what messages the script would have supported?
-         } else {
-             return this.mMessageDispatcher.dispatch(channel, msg);
+         }else {
          }
-     };
-
-     Kata.BootstrapScript.prototype._handleConnected = function(channel, msg) {
-         var presence = new Kata.Presence(this.mScript, Kata.URL(msg.space), msg.id, msg.loc, msg.visual);
-
-         this.mPresences[msg.space] = presence;
-         this.mScript.newPresence(presence);
-     };
-
-     Kata.BootstrapScript.prototype._handleConnectFailed = function(channel, msg) {
-         this.mScript.connectFailure(msg.space, msg.reason);
-     };
-
-     Kata.BootstrapScript.prototype._handleDisconnect = function(channel, msg) {
-         var invalidated = this.mPresences[msg.space];
-         if (!invalidated) return;
-
-         delete this.mPresences[msg.space];
-         this.mScript.presenceInvalidated(invalidated, "Disconnected.");
      };
 
 }, "katajs/oh/impl/BootstrapScript.js");

@@ -29,9 +29,11 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+"use strict";
 
-
-
+/**
+ * @constructor
+ */
 var GLGEGraphics=function(callbackFunction,parentElement) {
     this.mCurTime=new Date();
     this.callback=callbackFunction;
@@ -113,7 +115,7 @@ var GLGEGraphics=function(callbackFunction,parentElement) {
     
     function initialTextureLoadHack(){
         var anyAnim=false;
-        for (animObject in thus.mAnimatingObjects) {
+        for (var animObject in thus.mAnimatingObjects) {
             anyAnim=true;
             break;
         }
@@ -222,8 +224,8 @@ Kata.require([
      'externals/GLGE/src/animation/glge_animationcurve.js',
      'externals/GLGE/src/animation/glge_animationpoints.js',
      'externals/GLGE/src/animation/glge_action.js']], function(){
-
-    CDN_SERVICES = {
+    var g_GLGE_doc;
+    var CDN_SERVICES = {
         //"meerkat": "http://localhost"
         "meerkat": "http://open3dhub.com"
     };
@@ -337,7 +339,7 @@ Kata.require([
         }
         var didRender=false;
         if (!thus.doubleBuffer)
-            for (animObject in thus.mAnimatingObjects) {
+            for (var animObject in thus.mAnimatingObjects) {
                 if (thus.windowVisible){
                     thus.newEvent();
                 }
@@ -381,6 +383,7 @@ Kata.require([
             this.mDoCaptureCanvas-=1;
         }
     };
+         
     /** Static initialization method. */
     GLGEGraphics.initialize = function(scenefile, cb) {
         g_GLGE_doc = new GLGE.Document();
@@ -892,7 +895,7 @@ Kata.require([
     
     
     GLGEGraphics.prototype.send=function(obj) {
-        if (obj.msg!="Custom"){
+        if (obj.msg!="Custom"&&obj.__type==Kata.ScriptProtocol.FromScript.Types.GraphicsMessage) {
             this.methodTable[obj.msg].call(this, obj);
             this.newEvent();
         }
@@ -1201,6 +1204,7 @@ Kata.require([
         
         if (msg.id in this.mUnsetParents) {
             var unset=this.mUnsetParents[msg.id];
+            var i;
             for (i in unset) {
                 newObject.mNode.addChild(unset[i].mNode);//.parent=newObject.mNode;
                 delete unset[i].mUnsetParent;

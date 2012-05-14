@@ -29,6 +29,7 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+"use strict";
 
 Kata.require([
 ], function() {
@@ -46,7 +47,7 @@ Kata.require([
      };
 
      Kata.Loopback.Loc.prototype._notify = function() {
-         for(listener in this.mListeners) {
+         for(var listener in this.mListeners) {
              listener.apply(undefined, arguments);
          }
      };

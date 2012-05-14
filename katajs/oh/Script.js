@@ -29,6 +29,7 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+"use strict";
 
 
 Kata.require([
@@ -68,9 +69,11 @@ Kata.require([
          this.mRemotePresences = {};
 
          this.mConnectRequests = {};
-
          var handlers = {};
          var msgTypes = Kata.ScriptProtocol.ToScript.Types;
+         handlers[msgTypes.Connected] = Kata.bind(this._handleConnected, this);
+         handlers[msgTypes.ConnectionFailed] = Kata.bind(this._handleConnectFailed, this);
+         handlers[msgTypes.Disconnected] = Kata.bind(this._handleDisconnect, this);
          handlers[msgTypes.ReceiveODPMessage] = Kata.bind(this._handleReceiveODPMessage, this);
          handlers[msgTypes.QueryEvent] = Kata.bind(this._handleQueryEvent, this);
          handlers[msgTypes.PresenceLocUpdate] = Kata.bind(this._handlePresenceLocUpdate, this);
@@ -111,8 +114,10 @@ Kata.require([
          this._sendHostedObjectMessage(msg);
      };
 
-     Kata.Script.prototype.newPresence = function(presence) {
-         this.mPresences[presence.space()] = presence;
+     Kata.Script.prototype._handleConnected = function(channel, msg) {
+         var presence = new Kata.Presence(this, Kata.URL(msg.space), msg.id, msg.loc, msg.visual, msg.physics);
+
+         this.mPresences[msg.space] = presence;
 
          // Notify normal script
          var cb = this.mConnectRequests[presence.space()];
@@ -126,20 +131,21 @@ Kata.require([
              if (beh.newPresence) beh.newPresence(presence);
          });
      };
-     Kata.Script.prototype.connectFailure = function(space, reason) {
-         var cb = this.mConnectRequests[space];
+     Kata.Script.prototype._handleConnectFailed = function(channel,msg) {
+         var cb = this.mConnectRequests[msg.space];
          if (cb) {
-             delete this.mConnectRequests[space];
-             cb(null, space, reason);
+             delete this.mConnectRequests[msg.space];
+             cb(null, msg.space, msg.reason?msg.reason:"Disconnected");
          }
      };
-     Kata.Script.prototype.presenceInvalidated = function(presence, reason) {
-         if (this.mPresences[presence.space()]) {
-             delete this.mPresences[presence.space()];
-         }
+     Kata.Script.prototype._handleDisconnect = function(channel, msg) {
+         var invalidated = this.mPresences[msg.space];
+         if (!invalidated) return;
+
+         delete this.mPresences[msg.space];
 
          this.mBehaviors.forEach(function(beh) {
-             if (beh.presenceInvalidated) beh.presenceInvalidated(presence);
+             if (beh.presenceInvalidated) beh.presenceInvalidated(invalidated);
          });
      };
      /** Request a callback after the specified amount of time.  If

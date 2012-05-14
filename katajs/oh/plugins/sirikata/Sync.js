@@ -29,6 +29,7 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+"use strict";
 
 Kata.require([
     ['externals/protojs/protobuf.js','externals/protojs/pbj.js','katajs/oh/plugins/sirikata/impl/TimeSync.pbj.js']
@@ -80,7 +81,7 @@ Kata.require([
         var seqno = this.mSeqNo;
         this.mSeqNo = (this.mSeqNo+1) % 256;
         sync_msg.seqno = seqno;
-        this.mRequestTimes[seqno] = (new Date()).getTime();
+        this.mRequestTimes[seqno] = Date.now();
 
         var serialized = new PROTO.ByteArrayStream();
         sync_msg.SerializeToStream(serialized);
@@ -96,11 +97,11 @@ Kata.require([
 
     Kata.Sirikata.SyncClient.prototype.handleMessage = function(space, src, src_port, dest, dest_port, payload) {
         var sync_msg = new Sirikata.Protocol.TimeSync();
-        sync_msg.ParseFromStream(new PROTO.ByteArrayStream(payload));
+        sync_msg.ParseFromStream(PROTO.CreateArrayStream(payload));
 
         var local_start_t = this.mRequestTimes[sync_msg.seqno];
         var server_t = sync_msg.t;
-        var local_finish_t = (new Date()).getTime();
+        var local_finish_t = Date.now();
 
         // Sanity check the round trip time to avoid using outdated packets
         var rtt = local_finish_t - local_start_t;

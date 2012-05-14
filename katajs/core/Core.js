@@ -30,8 +30,14 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-network_debug = false;
-if (0) {
+/**
+ * @suppress {duplicate}
+ */
+var Kata;
+
+var network_debug = false;
+var debug_console;
+if (network_debug) {
     // JSDoc hack
     /** Top-level namespace for KataJS.
      * @namespace
@@ -40,18 +46,53 @@ if (0) {
 }
 if (typeof(Kata) == "undefined") {Kata = {};}
 if (typeof(console) == "undefined") {
-	console = {};
+	self.console = {};
 	debug_console = false;
 } else {
 	debug_console = true;
 }
 if (typeof(JSON) == "undefined") {JSON = {};}
 
-/** @define {string} Root directory of scripts. Inferred by any "script"
-  tags pointing to Core.js. */
-if (!Kata.scriptRoot) { Kata.scriptRoot=""; }
-if (!Kata.queryString) { Kata.queryString=""; }
+Kata.urlGetVars = new (
+/**
+ * @constructor
+ */
+ function (sSearch) {  
+  'use strict';
+  var rNull = /^\s*$/, rBool = /^(true|false)$/i;  
+  function buildValue(sValue) {  
+    'use strict';
+    if (rNull.test(sValue)) { return null; }  
+    if (rBool.test(sValue)) { return sValue.toLowerCase() === "true"; }  
+    if (isFinite(sValue)) { return parseFloat(sValue); }  
+      var a =
+          /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2}(?:\.\d*)?)Z$/.exec(sValue);
+      if (a) {
+          return new Date(Date.UTC(+a[1], +a[2] - 1, +a[3], +a[4],
+                                   +a[5], +a[6]));
+      }      
+      return sValue;  
+  }  
+  if (sSearch.length > 1) {  
+    for (var aItKey, nKeyId = 0, aCouples = sSearch.substr(1).split("&"); nKeyId < aCouples.length; nKeyId++) {  
+      aItKey = aCouples[nKeyId].split("=");  
+      this[unescape(aItKey[0])] = aItKey.length > 1 ? buildValue(unescape(aItKey[1])) : null;  
+    }  
+  }  
+})(self.location.search);  
+
+/** Root directory of scripts. Inferred by any "script" tags pointing to Core.js. */
+if (self["Kata_scriptRoot"]!==undefined) {
+    Kata.scriptRoot=self["Kata_scriptRoot"];
+}else if (!Kata.scriptRoot) { Kata.scriptRoot=""; }
+if (!Kata.queryString) { 
+    if (Kata.urlGetVars["v"])
+        Kata.queryString="?"+Kata.urlGetVars["v"]; 
+    else
+        Kata.queryString=""; 
+}
 (function() {
+    'use strict';
     var includedscripts = Kata.closureIncluded || {"katajs/core/Core.js":true};
     var loadedDeps = {"katajs/core/Core.js":true};
 
@@ -60,16 +101,21 @@ if (!Kata.queryString) { Kata.queryString=""; }
     Kata._currentScript = [];
 
     Kata.getCurrentScript = function() {
+        'use strict';
         return Kata._currentScript[Kata._currentScript.length - 1];
     };
 
     function runNewCurrentScript (scriptfile, body) {
+        'use strict';
         Kata._currentScript.push(scriptfile);
         try {
             if (body) {
                 body();
             }
-        } finally {
+        //}catch (e) {
+            //Kata.log(e.message);
+            //throw e;
+        }finally {
             if (Kata.getCurrentScript() != scriptfile) Kata.log('Error11: ' +scriptfile+ ' != '+Kata.getCurrentScript(), Kata._currentScript);
             Kata._currentScript.pop();
             if (scriptfile) {
@@ -79,7 +125,9 @@ if (!Kata.queryString) { Kata.queryString=""; }
     }
 
     function orderedRequire(depList) {
+        'use strict';
         function runRequire(i) {
+            'use strict';
             return function() {
                 delete depsPending[depList[i]];
                 Kata.include(depList[i]);
@@ -102,6 +150,7 @@ if (!Kata.queryString) { Kata.queryString=""; }
     }
 
     Kata.require = function(deps, body, provide) {
+        'use strict';
         // FIXME: What to do if provide argument is typo'ed?
         if (provide && provide in loadedDeps) {
             Kata.warn("JS file "+provide+" included twice.");
@@ -130,6 +179,7 @@ if (!Kata.queryString) { Kata.queryString=""; }
             }
         }
         function runDep(finished) {
+            'use strict';
             if (unfinishedDeps[finished]) {
                 delete unfinishedDeps[finished];
                 remainingDeps--;
@@ -164,9 +214,14 @@ if (!Kata.queryString) { Kata.queryString=""; }
         }
     };
 
-    Kata.defer = function (f){if (f) Kata.require([], f, null);};
+    Kata.defer = function (f){
+        'use strict';
+        if (f) 
+            Kata.require([], f, null);
+    };
 
     Kata.setIncluded = function(provide) {
+        'use strict';
         if (!provide) {
             return;
         }
@@ -190,12 +245,14 @@ if (!Kata.queryString) { Kata.queryString=""; }
          * This version uses "importscripts" as defined in the Web Worker API.
          */
         Kata.include = function(scriptfile) {
+            'use strict';
             if (includedscripts[scriptfile]) {
                 return;
             }
             includedscripts[scriptfile] = true;
             runNewCurrentScript(scriptfile, 
                 function() {
+                    'use strict';
                     try {
                         importScripts(Kata.scriptRoot+scriptfile+Kata.queryString);
                     } catch (e) {
@@ -228,6 +285,7 @@ if (!Kata.queryString) { Kata.queryString=""; }
          * This version inserts a "script" tag into the DOM.
          */
         Kata.include = function(scriptfile) {
+            'use strict';
             if (includedscripts[scriptfile]) {
                 return;
             }
@@ -235,10 +293,15 @@ if (!Kata.queryString) { Kata.queryString=""; }
             var scriptTag, textNode;
 
             scriptTag = document.createElement("script");
-            scriptTag.src = Kata.scriptRoot+scriptfile+Kata.queryString;
+            if (scriptfile.search("http")==0) {
+                scriptTag.src = scriptfile;//some external
+            }else {
+                scriptTag.src = Kata.scriptRoot+scriptfile+Kata.queryString;                
+            }
             scriptTag.type = "text/javascript";
 
             var scriptContent = function(){
+                'use strict';
                 if (Kata.getCurrentScript()) Kata.log('Error: '+scriptfile+' != '+Kata.getCurrentScript(), Kata._currentScript);
                 //Kata.log('===END LOAD+++ '+scriptfile);
                 Kata.setIncluded(scriptfile);
@@ -259,6 +322,7 @@ if (!Kata.queryString) { Kata.queryString=""; }
      *     prototype is often stored in a "SUPER" variable in the local scope.
     */
     Kata.extend = function(childcons, parent) {
+        'use strict';
         /* Doesn't allow instanceof to work. If we want this, we would make
            use "new parent.constructor" as our object. */
         for (var prop in parent) {
@@ -270,14 +334,15 @@ if (!Kata.queryString) { Kata.queryString=""; }
     /** Returns a function that binds the passed function to an object.
      *  Useful for all cases where you need to pass a function argument, but
      *  you expect 'this' to be correctly set.
+     *  FIXME: make compliant with strict mode <-- delete arguments fails
      *
      *  @param {function(this:Object,...[*])} func  A function object to bind.
      *  @param {Object} object  Instance of some class to become 'this'.
      *  @return {function(...[*])}  A new function that wraps func.apply()
      */
     Kata.bind = function(func, object) {
+        'use strict';
         if (arguments.length==2) {
-            delete arguments;
             return function() {
                 return func.apply(object, arguments);
             };            
@@ -286,7 +351,6 @@ if (!Kata.queryString) { Kata.queryString=""; }
             for (var i=2;i<arguments.length;++i) {
                 args[i-2]=arguments[i];
             }
-            delete arguments;
             return function () {
                 var argLen=arguments.length;
                 var newarglist=new Array(argLen);
@@ -297,8 +361,12 @@ if (!Kata.queryString) { Kata.queryString=""; }
             };
         }
     };
-
+/**
+ * @param {Object} msg
+ * @param {string=} level
+ */
     Kata.stringify = function(msg, level) {
+        'use strict';
         if (!level) {
             level = "";
         }
@@ -318,16 +386,17 @@ if (!Kata.queryString) { Kata.queryString=""; }
 
     if (console.log && console.log.apply && debug_console) {
         /** Logs msg to the console, in addition to some json object.
-         * @param {...(object|string)} var_args  Some optional JSON data to log.
+         * @param {...(Object|string)} var_args  Some optional JSON data to log.
          */
         Kata.log = function(var_args) {
+            'use strict';
             console.log.apply(console, arguments);
         };
     } else if (typeof(document)=="undefined" || typeof(window)=="undefined") {
-        /** Logs msg to the parent web worker, in addition to some json object.
-         * @param {...(object|string)} var_args  Logs some optional JSON data.
+        /* Logs msg to the parent web worker, in addition to some json object.
          */
         Kata.log = console.log = function(var_args) {
+            'use strict';
             var args = [];
             for (var i = 0; i < arguments.length; i++) {
                 args[i] = arguments[i];
@@ -344,10 +413,10 @@ if (!Kata.queryString) { Kata.queryString=""; }
             });
         };
     } else if (debug_console) {
-        /** Logs msg to the console, in addition to some json object.
-         * @param {...(object|string)} var_args  Logs some optional JSON data.
+        /* Logs msg to the console, in addition to some json object.
          */
         Kata.log = console.log = function(var_args) {
+            'use strict';
             window.status = ""+arguments[0];
             var p = document.createElement("p");
             p.style.border="1px solid black";
@@ -380,6 +449,7 @@ if (!Kata.queryString) { Kata.queryString=""; }
         };
     } else {
         Kata.log = console.log = function() {
+            'use strict';
         }
     }
 
@@ -387,6 +457,7 @@ if (!Kata.queryString) { Kata.queryString=""; }
      *  original thread instead of a Web Worker.
      */
     Kata.setStatus = function(msg) {
+        'use strict';
         if (typeof(window) == "undefined")
             return;
         window.status = msg;
@@ -407,6 +478,7 @@ if (!Kata.queryString) { Kata.queryString=""; }
      *     This string is thrown.
      */
     Kata.error = function(error) {
+        'use strict';
         // Worker thread
         if (typeof(window) == "undefined") {
             // Worker thread
@@ -431,9 +503,10 @@ if (!Kata.queryString) { Kata.queryString=""; }
      *
      *  @param {string} note If supplied, this note will be reported
      *         with the rest of the information.
-     *  @param {string} type If supplied, is used as a prefix to .
+     *  @param {string=} type If supplied, is used as a prefix to .
      */
     Kata.warn = function(note, type) {
+        'use strict';
         if (typeof(type) == "undefined" || !type)
             type = "";
 
@@ -472,6 +545,7 @@ if (!Kata.queryString) { Kata.queryString=""; }
      *         with the rest of the information.
      */
     Kata.notImplemented = function(note) {
+        'use strict';
         Kata.log(note, "notImplemented");
     };
 
@@ -482,6 +556,7 @@ if (!Kata.queryString) { Kata.queryString=""; }
      *  to the main thread.
      */
     Kata.debugMessage = function(channel, data) {
+        'use strict';
         if (data === undefined || data === null || data.msg != __magic_debug_msg_string)
             return false;
         var debugId = 0;

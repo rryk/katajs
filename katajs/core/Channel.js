@@ -29,6 +29,7 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+"use strict";
 
 Kata.require([
 ], function() {
@@ -42,12 +43,12 @@ Kata.require([
 
     /**
      * Registers a function to be called when a message is sent.
-     * @param {function(Kata.Channel, (string|object))} listener  A callback func
+     * @param {function(Kata.Channel, (string|Object))} listener  A callback func
      */
     Kata.Channel.prototype.registerListener = function (listener) {
         if (!listener.call) {
-            if (network_debug) console.log("Listener call type is ",typeof(listener));
-            if (network_debug) console.log("Listener constructor type is ",listener.constructor);
+            if (network_debug) Kata.log("Listener call type is "+typeof(listener));
+            if (network_debug) Kata.log("Listener constructor type is "+listener.constructor);
             throw "Error in registerListener: not a function";
         }
         if (!this.mListener) {
@@ -58,10 +59,34 @@ Kata.require([
             this.mListener = [this.mListener, listener];
         }
     };
+
+
+    /**
+     * Registers a function to be called when a message is sent.
+     * @param {function(Kata.Channel, (string|Object))} listener  A callback func
+     */
+    Kata.Channel.prototype.unregisterListener = function (listener) {
+        if (listener==this.mListener) {
+            delete this.mListener;
+            return true;
+        }
+        if (this.mListener instanceof Array) {
+            for (var i=0;i<this.mListener.length;++i) {
+                if (this.mListener[i]==listener) {
+                    for (var j=i;j+1<this.mListener.length;++j) {
+                        this.mListener[j]=this.mListener[j+1];
+                    }
+                    this.mListener.pop();
+                    return true;
+                }
+            }
+        }
+        return false;
+    };
     /**
      * Protected function to be called by subclasses when a message has been
      * received and is to be delivered to listeners.
-     * @param {string|object} data  Serializable data to pass to the listeners.
+     * @param {string|Object} data  Serializable data to pass to the listeners.
      * @protected
      */
     Kata.Channel.prototype.callListeners = function (data) {

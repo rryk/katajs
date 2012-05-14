@@ -29,7 +29,7 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
+"use strict";
 
 Kata.require([
     'katajs/core/Channel.js',
@@ -44,7 +44,7 @@ Kata.require([
     Kata.MainThread = function (blessed_script, blessed_class, blessed_args) {
         // FIXME this should select FakeWebWorker or WebWorker based on whether
         // the necessary objects (e.g. WebSocket) are available in WebWorkers.
-        this.mObjectHostWorker = new Kata.FakeWebWorker("katajs/oh/ObjectHostWorker.js", "Kata.ObjectHostWorker",
+        this.mObjectHostWorker = new Kata.WebWorker("katajs/oh/ObjectHostWorker.js", "Kata.ObjectHostWorker",
                                                     {script : blessed_script, method : blessed_class, args : blessed_args}
                                                    );
         this.mObjectHostChannel = this.mObjectHostWorker.getChannel();
@@ -63,8 +63,28 @@ Kata.require([
     /**
      * Not really useful. May be for multiplexing the OH channel?
      */
-    Kata.MainThread.prototype.receivedMessage = function(channel, data) {
+    Kata.MainThread.prototype.receivedMessage = function(channel, data) {        
         //console.log("Kata.MainThread received ObjectHost message:",data);
+        if (data.__type==Kata.ScriptProtocol.FromScript.Types.InstantiateObjectScript) {
+            var args = data.args;
+            var clsName = data.method;
+            var clsTree = clsName.split(".");
+            Kata.require(
+                [data.script],
+                function() {
+                    var cls = self;
+                    for (var i = 0; cls && i < clsTree.length; i++) {
+                        cls = cls[clsTree[i]];
+                    }
+                    if (!cls) {
+                        Kata.error(clsName+" is undefined:" + this.mJSFile);
+                    }
+                    if (network_debug) console.log("going!");
+                    var child = new cls (
+                        channel,
+                        args);
+                });
+        }
     };
 
 }, 'katajs/oh/MainThread.js');

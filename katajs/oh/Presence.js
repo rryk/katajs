@@ -29,7 +29,7 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
+"use strict";
 
 Kata.require([
     'katajs/oh/RemotePresence.js',
@@ -78,10 +78,10 @@ Kata.require([
       * @param {Kata.PresenceID} id Unique identifier of this object in
       * the space.
       */
-     Kata.Presence = function (script, space, id, location, vis) {
+      Kata.Presence = function (script, space, id, location, vis, physics) {
          // Note the second parameter is the RemotePresence's parent,
          // which in this special case is just the Presence itself
-         SUPER.constructor.call(this, this, space, id, location, vis);
+         SUPER.constructor.call(this, this, space, id, location, vis, physics);
 
          this.mScript = script;
 
@@ -357,6 +357,7 @@ Kata.require([
      };
      Kata.Presence.prototype.setPhysics = function(val) {
          var msg = new Kata.ScriptProtocol.FromScript.Physics(this.mSpace, this.mID, val);
+         
          this._sendHostedObjectMessage(msg);
      };
 
@@ -374,6 +375,8 @@ Kata.require([
          if (added && loc_msgs !== undefined) {
              for(var li = 0; li < loc_msgs.length; li++)
                  remote._updateLoc(loc_msgs[li].loc, loc_msgs[li].visual);
+             if (this.mOrphanLocUpdates[presid].timeout)
+                 clearTimeout(this.mOrphanLocUpdates[presid].timeout);
              delete this.mOrphanLocUpdates[presid];
          }
      };
@@ -429,7 +432,7 @@ Kata.require([
 
          if (this.id() === msg.observed) {
 //             Kata.warn("Self loc update: " + this.id());
-             this._updateLoc(msg.loc, msg.visual);
+             this._updateLoc(msg.loc, msg.visual, msg.physics);
              return this;
          }
          else {
@@ -437,7 +440,7 @@ Kata.require([
              var remote = remotePresences[key];
 //             Kata.warn("Remote presence loc update: " + key);
              if (remote) {
-                 remote._updateLoc(msg.loc, msg.visual);
+                 remote._updateLoc(msg.loc, msg.visual, msg.physics);
              }
              else {
                  // Stash changes to pick up with later prox
@@ -451,7 +454,9 @@ Kata.require([
                  this.mOrphanLocUpdates[presid].push(msg);
                  // Extra long timeout should be safe but not keep too
                  // much data around
-                 setTimeout(Kata.bind(this._clearOrphanLocUpdates, this, presid), 60000);
+                 if (!this.mOrphanLocUpdates[presid].timeout) {
+                     this.mOrphanLocUpdates[presid].timeout=setTimeout(Kata.bind(this._clearOrphanLocUpdates, this, presid), 60000);
+                 }
              }
 
              return remote;

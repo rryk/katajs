@@ -29,6 +29,7 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+"use strict";
 
 
 Kata.require([
@@ -179,9 +180,9 @@ Kata.require([
          );
      };
 
-     Kata.HostedObject.prototype.presenceLocUpdate = function(space, from, loc, visual) {
+     Kata.HostedObject.prototype.presenceLocUpdate = function(space, from, loc, visual, physics) {
          var msg = new Kata.ScriptProtocol.ToScript.PresenceLocUpdate(
-             space, from, loc, visual
+             space, from, loc, visual, physics
          );
          this.sendScriptMessage(msg);
      };
@@ -233,4 +234,31 @@ Kata.require([
              Kata.bind(this.messageFromScript,this));
          script_worker.go();
      };
+
+    Kata.HostedObject.prototype.createMainThreadScript = function(script, method, args, mainThreadChannel) {
+/*
+         var script_worker = new Kata.FakeWebWorker(
+             "katajs/oh/impl/BootstrapScript.js",
+             "Kata.BootstrapScript",
+             {
+                 realScript: script,
+                 realClass: method,
+                 realArgs: args
+             }
+         );
+*/
+         this.mScriptChannel = mainThreadChannel;
+         this.mScriptChannel.registerListener(
+         Kata.bind(this.messageFromScript,this));
+        this.mScriptChannel.sendMessage(new Kata.ScriptProtocol.FromScript.InstantiateObjectScript(
+             "katajs/oh/impl/BootstrapScript.js",
+             "Kata.BootstrapScript",
+             {
+                 realScript: script,
+                 realClass: method,
+                 realArgs: args
+             }));
+//         script_worker.go();
+    };
+
 }, 'katajs/oh/HostedObject.js');

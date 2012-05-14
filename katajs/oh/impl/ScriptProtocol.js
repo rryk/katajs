@@ -29,7 +29,7 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
+"use strict";
 
 Kata.require([
     'katajs/core/URL.js',
@@ -97,6 +97,7 @@ Kata.require([
                  Subscription : "fsub",
 
                  CreateObject : "fcre",
+                 InstantiateObjectScript : "fscr",
                  GraphicsMessage : "fgfm",
                  EnableGUIMessage : "feui",
                  DisableGUIMessage : "fdui",
@@ -126,6 +127,12 @@ Kata.require([
              RegisterGUIMessage : function (event) {
                  this.__type = Kata.ScriptProtocol.FromScript.Types.EnableGUIMessage;
                  this.event = event;
+             },            
+             InstantiateObjectScript : function (script,method,args) {
+                 this.__type = Kata.ScriptProtocol.FromScript.Types.InstantiateObjectScript;
+                 this.script=script;
+                 this.method=method;
+                 this.args=args;
              },            
              UnregisterGUIMessage : function (event) {
                  this.__type = Kata.ScriptProtocol.FromScript.Types.DisableGUIMessage;
@@ -359,9 +366,9 @@ Kata.require([
                  this.msg="AttachCameraTexture";
                  this.space = space+observer;
                  this.id = id;
-                 this.texobjid=textureObjectId;
+                 this.texobjid=textureObjectID;
                  this.texobjspace=textureObjectSpace;
-                 this.texname=textureName;
+                 this.texname=texture;
              },
              GFXDetachCamera : function(space, observer, id) {
                  Kata.ScriptProtocol.FromScript.GraphicsMessage.call(this, space, observer, id);
@@ -445,7 +452,7 @@ Kata.require([
              },
              
              GUIMessage : function (msg) {
-                 for (field in msg) {
+                 for (var field in msg) {
                      this[field]=msg[field];
                  }
                  this.__type = Kata.ScriptProtocol.ToScript.Types.GUIMessage;
