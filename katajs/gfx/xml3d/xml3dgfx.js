@@ -1,7 +1,7 @@
 /*  Kata Javascript Graphics - XML3D Interface
  *  xml3dgfx.js
  *
- *  Copyright (c) 2011, Sergiy Byelozyorov
+ *  Copyright (c) 2012, Sergiy Byelozyorov, Torsten Spieldenner
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -34,7 +34,9 @@
 
 Kata.require([
     'katajs/oh/GraphicsSimulation.js',
-    ['externals/xml3d/xml3d.js', 'externals/xml3d/xml3d_animation.js']
+	'katajs/gfx/xml3d/humanoid.js',
+    ['externals/xml3d/xml3d.js', 'katajs/gfx/xml3d/xml3d-motion.js' ]
+    //['katajs/gfx/xml3d/xml3d-motion.js','externals/xml3d/xml3d_animation.js']
 ], function() {
 
     /* XML3DGraphics class */
@@ -80,7 +82,7 @@ Kata.require([
                 alert("Error! Please use a browser that supports WebGL or native XML3D!");
             }
         }
-
+		
         // bind message handlers
         var thus = this;
 
@@ -508,6 +510,7 @@ Kata.require([
     }
 
     XML3DVWObject.prototype.initMesh = function(mesh, type) {
+
         if (this.objType === undefined)
         {
             if (type == "xml3d")
@@ -521,10 +524,14 @@ Kata.require([
                     url: mesh,
                     success: function(data) {
                         // parse received mesh
-                        var doc = new DOMParser().parseFromString(data, "text/xml");
-
+                        var srcDoc = new DOMParser().parseFromString(data, "text/xml");
+						
+						// Convert XML-Document containing definitions into XML3D-Document in order to have it parsed correctly
+						// by XMOT-Library
+						var xml3ddoc = new org.xml3d.XML3DDocument(srcDoc);
+							
                         // append new object to the scene
-                        if (doc && doc.documentElement.nodeName.toLowerCase() == "xml3d")
+                        if (srcDoc && srcDoc.documentElement.nodeName.toLowerCase() == "xml3d")
                         {
                             // create transformation
                             thus.transformID = "transform-" + thus.id;
@@ -533,7 +540,7 @@ Kata.require([
                             thus.gfx.defs.appendChild(thus.transform);
 
                             // add suffix to id's in the mesh document
-                            thus.appendSuffixToIds(doc.documentElement, thus.id);
+                            thus.appendSuffixToIds(xml3ddoc.parentDocument.documentElement, thus.id);
 
                             // function to update location of the mesh
                             thus.updateLocation = function(interpolate) {
@@ -556,39 +563,43 @@ Kata.require([
                             // TODO: set shader when support will be added to JavascriptGraphicsAPI
                             thus.gfx.root.appendChild(thus.group);
 
-                            // add mesh to the group
-                            for (var n = doc.documentElement.firstChild; n; n = n.nextSibling)
+                            
+							// add mesh to the group
+                            for (var n = xml3ddoc.parentDocument.documentElement.firstChild; n; n = n.nextSibling)
                                 thus.group.appendChild(document.importNode(n, true));
 
                             // configure animations for the new mesh
-                            var animationsNode = thus.group.getElementsByTagName("animations")[0];
-                            if (animationsNode) {
+							                       
                                 // create an array with animations
                                 thus.animations = {};
-
-                                // parse embedded animations and fill created array
-                                for (var childIndex in animationsNode.childNodes) {
-                                    var animElem = animationsNode.childNodes[childIndex];
-
-                                    if (animElem.nodeType == Node.ELEMENT_NODE && animElem.nodeName.toLowerCase() == "animation" && animElem.hasAttribute("name") && animElem.hasAttribute("length") && animElem.hasAttribute("data")) {
-                                        var name = animElem.getAttribute("name");
-
-                                        thus.animations[name] = {
-                                            name: name,
-                                            data: animElem.getAttribute("data"),
-                                            length: animElem.getAttribute("length"),
-                                            repeat: animElem.hasAttribute("repeat") ? animElem.getAttribute("repeat") != "no" : true,
-                                            start: animElem.hasAttribute("start") ? animElem.getAttribute("start") : 0
-                                        };
-                                    }
-                                }
-
-                                // run last saved animation
+								// ... and humanoids, i.e. mappings from generic to user chosen animation names
+								thus.humanoids = {};
+								
+								factory = new XMOT.ClientMotionFactory();								
+								var constraint = new XMOT.SimpleConstraint(true);
+								thus.animatable = factory.createAnimatable(thus.group, constraint);
+								
+								
+								var h = new HumanoidAnimationParser();								
+								thus.humanoids = h.parseHumanoids(xml3ddoc.parentDocument);
+								thus.animations = h.parseAnimations(xml3ddoc.parentDocument, thus.animatable);
+								
+		
+								for(var a in thus.animations)
+								{
+									console.log(a + "\n");
+								}
+								
+								for(var hu in thus.humanoids)
+								{
+									console.log(hu + ": " + thus.humanoids[hu] + "\n");
+								}
+								
                                 if (thus.savedAnimation != undefined) {
                                     thus.animate(thus.savedAnimation);
                                     delete thus.savedAnimation;
                                 }
-                            }
+                            
 
                             // notify gfx that we have loaded the mesh
                             thus.gfx.inputCallback({msg: "loaded", id: thus.id});
@@ -683,9 +694,11 @@ Kata.require([
     }
 
     // start named animation of an object
-    XML3DVWObject.prototype.animate = function(animationName, speed) {
+    XML3DVWObject.prototype.animate = function(humanoidName, speed) {
+		
         if (this.objType != "mesh") {
-            console.error("Cannot animate an object " + this.id + ". It is not a mesh.");
+            //console.error("Cannot animate an object " + this.id + ". It is not a mesh.");
+			this.savedAnimation = humanoidName;
             return;
         }
 
@@ -695,13 +708,18 @@ Kata.require([
         // stop previous animation
         if (this.runningAnimation != undefined) {
             // TODO: morph animations smoothly
-            window.clearInterval(this.animations[this.runningAnimation].handle);
+			this.animatable.stopAnimation(this.animID);
             delete this.runningAnimation;
         }
 
+
+		if(this.humanoids != undefined)
+		{
+			var animationName = this.humanoids[humanoidName];
+		}
         // save animation if we haven't loaded mesh yet
         if (this.animations == undefined) {
-            this.savedAnimation = animationName;
+            this.savedAnimation = humanoidName;
         } else if (animationName == undefined) {
             ; // this is intended to stop animation only
         } else if (this.animations[animationName] == undefined) {
@@ -709,23 +727,61 @@ Kata.require([
         } else {
             var anim = this.animations[animationName];
             var thus = this;
-            this.runningAnimation = animationName;
-            document.getElementById("dataAnimController" + this.id).src = anim.data;
-            document.getElementById("strength" + thus.id).childNodes[0].nodeValue = anim.start;
-            anim.progress = anim.start;
-            anim.handle = window.setInterval(
-                function() {
-                    anim.progress++;
-                    if (anim.progress >= anim.length)
-                    {
-                        anim.progress = anim.start;
-                        if (!anim.repeat)
-                            thus.animate(); // stop animation
-                    }
-                    document.getElementById("strength" + thus.id).childNodes[0].nodeValue = anim.progress;
-                },
-                50 / speed
-            );
+			this.runningAnimation = humanoidName;
+		
+			options = new Object();
+												
+			// No referenced Animations: Animation is pure keyframe animation and is played with its specified parameters
+			if(anim.referencedAnimations == undefined)
+			{
+				if(anim.duration) 
+					options['duration'] = anim.duration;
+				if(anim.loop)
+					options['loop'] = anim.loop;
+				if(anim.interpolation)
+					options['interpolation'] = anim.interpolation;
+				
+				console.log("Starting Animation " + animationName + " for humanoid '" + humanoidName + "' ");
+				
+				this.animID = thus.animatable.startAnimation(animationName, options);
+
+			}
+			
+			// Referenced Animations: start these animations at their specified starting point
+			else
+			{	
+				for(var refAnim in anim.referencedAnimations)
+				{
+					ranim = anim.referencedAnimations[refAnim];
+										
+					options = new Object();
+
+					var speed = 1;
+					if(ranim.speed)
+						speed = ranim.speed;
+						
+					options['duration'] = this.animations[refAnim].duration / speed;
+
+					cycles = 0;			
+					
+					if(!ranim.cycles)
+						cycles = 1;
+					else
+						cycles = ranim.cycles;
+					
+					options['loop'] = cycles;
+ 	
+					if(ranim.start)
+					{
+						options['delay'] = ranim.start;
+					}
+					
+					this.animID = thus.animatable.startAnimation(refAnim, options);
+
+				}
+				
+			}
+			
         }
     }
 
@@ -762,8 +818,10 @@ Kata.require([
             "mesh": ["src"],
             "light": ["shader"],
             "xml3d": ["activeView"],
-            "animation": ["data"],
-            "data": ["src"]
+            "animation": ["data", "ref"],
+            "data": ["src"],
+			"humanoid": ["animation"],
+			"animation": ["ref"]
         };
 
         // reference css property database
@@ -819,4 +877,4 @@ Kata.require([
 
     // Register XML3D as available graphics driver
     Kata.GraphicsSimulation.registerDriver("XML3D", XML3DGraphics);
-}, "katajs/gfx/xml3dgfx.js");
+}, "katajs/gfx/xml3d/xml3dgfx.js");
